@@ -44,14 +44,24 @@ cp .env.example .env  # Fill in API keys
 pytest
 ```
 
+## Running
+
+```bash
+# Run tests
+pytest
+
+# Run daily processing cycle
+python -m scripts.run_daily_sync
+
+# Seed test data
+python -m scripts.seed_test_data
+
+# Start dashboard
+uvicorn src.dashboard.app:app --reload --port 8000
+```
+
 ## Current Status
 
-Phase 1 MVP (pre-implementation). File structure and config scaffolded. Next: implement components in this order:
-1. CSV importer
-2. Database models
-3. State machine
-4. Response classifier
-5. Message generator
-6. Email sender (Instantly.ai)
-7. Cadence engine
-8. Main loop / scheduler
+Phase 1 MVP implemented. All core components built and tested (69 tests passing).
+
+Next steps (Phase 2): Vapi voice integration, Codat accounting API, Stripe payment links, write-back to accounting software.

@@ -1,1 +1,205 @@
-"""LLM-based message composition for each escalation phase."""
+"""LLM-based message composition for each escalation phase.
+
+Loads the appropriate phase system prompt, injects invoice/contact context,
+and calls Claude Sonnet 4 to generate the outbound message.
+
+Also implements the "reply to sent" follow-up technique (Phase 1 follow-ups
+are framed as forwarding your own sent email).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+import anthropic
+
+from src.config import settings
+from src.db.models import InvoicePhase
+from src.strategist.constraints import PHASE_MAX_WORDS, PHASE_1_BANNED_WORDS
+
+PROMPTS_DIR = Path(__file__).parent / "prompts"
+
+
+@dataclass
+class MessageContext:
+    """All context needed to generate an outbound message."""
+
+    agent_name: str
+    sme_name: str
+    invoice_number: str
+    debtor_company: str
+    contact_name: str
+    contact_email: str
+    amount: str
+    currency: str
+    days_overdue: int
+    due_date: str
+    phase: InvoicePhase
+    interaction_count_in_phase: int
+    previous_messages: list[str] | None = None
+    discount_authorised: bool = False
+    max_discount_percent: float = 0.0
+
+
+@dataclass
+class GeneratedMessage:
+    """The output of message generation."""
+
+    subject: str
+    body: str
+    is_reply_to_sent: bool = False
+
+
+def generate_message(ctx: MessageContext) -> GeneratedMessage:
+    """Generate an outbound email for the given phase and context.
+
+    For Phase 1 follow-ups (interaction_count > 0), uses the "reply to sent"
+    technique: forwards the original sent email with a casual bump.
+    """
+    # Phase 1 follow-up: "reply to sent" technique
+    if ctx.phase == InvoicePhase.PHASE_1 and ctx.interaction_count_in_phase > 0:
+        return _generate_reply_to_sent(ctx)
+
+    system_prompt = _load_phase_prompt(ctx)
+    user_prompt = _build_user_prompt(ctx)
+
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=500,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+
+    raw = message.content[0].text.strip()
+    subject, body = _parse_email(raw, ctx)
+
+    # Post-generation guardrail: check for banned words in Phase 1
+    if ctx.phase == InvoicePhase.PHASE_1:
+        body = _enforce_banned_words(body)
+
+    return GeneratedMessage(subject=subject, body=body)
+
+
+def _load_phase_prompt(ctx: MessageContext) -> str:
+    """Load and fill the system prompt template for the current phase."""
+    phase_num = ctx.phase.value
+    prompt_file = PROMPTS_DIR / f"phase_{phase_num}.txt"
+
+    if not prompt_file.exists():
+        raise FileNotFoundError(f"No prompt template for phase {phase_num}")
+
+    template = prompt_file.read_text()
+    return template.format(
+        agent_name=ctx.agent_name,
+        sme_name=ctx.sme_name,
+        invoice_number=ctx.invoice_number,
+    )
+
+
+def _build_user_prompt(ctx: MessageContext) -> str:
+    """Build the user-turn prompt with invoice context for the LLM."""
+    max_words = PHASE_MAX_WORDS.get(int(ctx.phase.value), 120)
+
+    prompt = (
+        f"Write an email to {ctx.contact_name} at {ctx.debtor_company} "
+        f"regarding Invoice #{ctx.invoice_number} for {ctx.currency} {ctx.amount}, "
+        f"which is {ctx.days_overdue} days overdue (due date: {ctx.due_date}).\n\n"
+        f"Keep the email under {max_words} words.\n"
+        f"Include a subject line on the first line prefixed with 'Subject: '.\n"
+        f"Then write the email body.\n"
+    )
+
+    if ctx.discount_authorised and ctx.max_discount_percent > 0:
+        prompt += (
+            f"\nThe client has pre-authorised a maximum discount of "
+            f"{ctx.max_discount_percent}% for early payment. "
+            f"You may offer this if strategically appropriate for this phase.\n"
+        )
+    else:
+        prompt += "\nDo NOT offer any discounts.\n"
+
+    if ctx.previous_messages:
+        prompt += "\nPrevious messages in this thread (for context, do not repeat):\n"
+        for msg in ctx.previous_messages[-3:]:
+            prompt += f"---\n{msg}\n"
+
+    return prompt
+
+
+def _parse_email(raw: str, ctx: MessageContext) -> tuple[str, str]:
+    """Parse the LLM output into subject and body."""
+    lines = raw.strip().split("\n")
+    subject = ""
+    body_start = 0
+
+    for i, line in enumerate(lines):
+        if line.lower().startswith("subject:"):
+            subject = line[len("subject:"):].strip()
+            body_start = i + 1
+            break
+
+    if not subject:
+        # Fallback subject
+        subject = f"Quick check on invoice #{ctx.invoice_number}"
+        body_start = 0
+
+    body = "\n".join(lines[body_start:]).strip()
+    return subject, body
+
+
+def _generate_reply_to_sent(ctx: MessageContext) -> GeneratedMessage:
+    """Generate a 'reply to sent' follow-up for Phase 1.
+
+    This is Stewart's technique: forward your own sent email with a casual
+    bump like 'Sending this again in case it didn't arrive.' This bypasses
+    spam filters and removes blame from the recipient.
+    """
+    follow_up_num = ctx.interaction_count_in_phase
+
+    if follow_up_num == 1:
+        body = (
+            f"Hi {ctx.contact_name},\n\n"
+            f"Sending this again in case it got buried — I know how hectic inboxes get. "
+            f"Just wanted to make sure Invoice #{ctx.invoice_number} landed okay on your end.\n\n"
+            f"Best,\n{ctx.agent_name}\n{ctx.sme_name}"
+        )
+    else:
+        body = (
+            f"Hi {ctx.contact_name},\n\n"
+            f"Just bumping this up one more time — I want to make sure we haven't "
+            f"hit a delivery issue with Invoice #{ctx.invoice_number}. "
+            f"Happy to re-send a fresh copy if that helps.\n\n"
+            f"Best,\n{ctx.agent_name}\n{ctx.sme_name}"
+        )
+
+    return GeneratedMessage(
+        subject=f"Re: Quick check on invoice #{ctx.invoice_number}",
+        body=body,
+        is_reply_to_sent=True,
+    )
+
+
+def _enforce_banned_words(body: str) -> str:
+    """Post-generation check: replace any banned Phase 1 words.
+
+    If the LLM slips a banned word through, replace it with a safe alternative.
+    This is a hard guardrail on top of the prompt constraint.
+    """
+    replacements = {
+        "overdue": "outstanding",
+        "late": "pending",
+        "debt": "balance",
+        "owed": "outstanding",
+        "collections": "accounts",
+    }
+    lower_body = body.lower()
+    for banned in PHASE_1_BANNED_WORDS:
+        if banned in lower_body:
+            replacement = replacements.get(banned, "outstanding")
+            # Case-insensitive replacement
+            import re
+            body = re.sub(re.escape(banned), replacement, body, flags=re.IGNORECASE)
+    return body
