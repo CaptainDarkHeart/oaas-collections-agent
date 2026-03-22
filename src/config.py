@@ -1,0 +1,45 @@
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    # Anthropic
+    anthropic_api_key: str = ""
+
+    # Codat
+    codat_api_key: str = ""
+    codat_webhook_secret: str = ""
+
+    # Instantly.ai
+    instantly_api_key: str = ""
+
+    # Vapi
+    vapi_api_key: str = ""
+
+    # ElevenLabs
+    elevenlabs_api_key: str = ""
+
+    # Stripe
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+
+    # Supabase
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_role_key: str = ""
+
+    # Slack
+    slack_webhook_url: str = ""
+
+    # Application
+    agent_default_name: str = "Alex"
+    agent_default_email: str = ""
+    default_currency: str = "GBP"
+    max_discount_percent: float = 3.0
+    fee_flat_amount: float = 500.0
+    fee_percentage: float = 10.0
+    fee_percentage_threshold: float = 5000.0
+
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+
+settings = Settings()

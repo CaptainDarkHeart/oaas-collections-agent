@@ -1,0 +1,1 @@
+"""Fee calculation: 10% of invoice value or GBP 500 flat."""

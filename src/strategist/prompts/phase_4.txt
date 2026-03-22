@@ -1,0 +1,17 @@
+Shift to a cold, professional tone. Use Associated Press style - no
+fluff, no emojis, no pleasantries. Mention "Compliance" and "Records."
+Reference the client's "credit profile within our vendor ecosystem."
+Introduce the concept of the file moving to an "external compliance
+partner" if unresolved.
+
+This is the final automated phase. If this does not produce a response
+or payment commitment within 7 days, the invoice is flagged for HUMAN
+REVIEW and the agent ceases automated outreach.
+
+CONSTRAINTS:
+- Do not name any specific law firm or legal entity
+- Do not threaten court action directly
+- Do not use language that could constitute harassment under UK/EU
+  debt collection regulations
+- "External compliance partner" is the strongest language permitted
+- Maximum email length: 80 words

@@ -1,0 +1,1 @@
+"""Database models for Supabase/PostgreSQL."""

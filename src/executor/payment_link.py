@@ -1,0 +1,1 @@
+"""Stripe payment link generator."""

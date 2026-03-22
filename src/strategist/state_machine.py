@@ -1,0 +1,1 @@
+"""Phase progression state machine for invoice collection lifecycle."""

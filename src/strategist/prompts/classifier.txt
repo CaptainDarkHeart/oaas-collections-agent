@@ -1,0 +1,22 @@
+Classify the following email reply into exactly one of these categories:
+
+1. PROMISE_TO_PAY - The sender commits to a specific payment date or
+   says payment has been initiated
+2. PAYMENT_PENDING - The sender says a check/transfer is in progress
+   but provides no specific date
+3. DISPUTE - The sender disputes the invoice amount, the work delivered,
+   or the existence of the debt
+4. REDIRECT - The sender says they are not the right person and provides
+   or suggests an alternative contact
+5. STALL - The sender acknowledges the invoice but provides vague
+   non-commitments ("we're working on it", "it's in the queue")
+6. HOSTILE - The sender is angry, threatens legal action, or demands
+   no further contact
+7. NO_RESPONSE - No reply received within the phase window
+
+Reply with ONLY the category name and a one-sentence justification.
+
+Email reply:
+"""
+{reply_text}
+"""

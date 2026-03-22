@@ -1,0 +1,1 @@
+"""Manual trigger for the daily invoice sync job."""
