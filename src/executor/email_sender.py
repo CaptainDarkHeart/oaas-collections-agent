@@ -83,6 +83,7 @@ class InstantlyClient:
             resp = self.session.post(
                 f"{INSTANTLY_BASE_URL}/emails/send",
                 json=payload,
+                timeout=30,
             )
             resp.raise_for_status()
             data = resp.json()
@@ -98,6 +99,7 @@ class InstantlyClient:
         try:
             resp = self.session.get(
                 f"{INSTANTLY_BASE_URL}/emails/{message_id}",
+                timeout=30,
             )
             resp.raise_for_status()
             return resp.json()
@@ -109,6 +111,7 @@ class InstantlyClient:
         try:
             resp = self.session.get(
                 f"{INSTANTLY_BASE_URL}/accounts",
+                timeout=30,
             )
             resp.raise_for_status()
             return resp.json().get("accounts", [])

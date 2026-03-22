@@ -14,7 +14,7 @@ Provides:
 from __future__ import annotations
 
 import os
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
@@ -78,7 +78,7 @@ def _init_demo_data() -> None:
             "id": inv_id, "sme_id": sme_id, "invoice_number": inv_num,
             "debtor_company": debtor, "amount": amount, "currency": "GBP",
             "due_date": due, "current_phase": phase, "status": status,
-            "created_at": (datetime.utcnow() - timedelta(days=days)).isoformat(),
+            "created_at": (datetime.now(tz=UTC) - timedelta(days=days)).isoformat(),
             "resolved_at": None, "fee_charged": False, "fee_amount": None,
         }
         _DEMO_CONTACTS[inv_id] = [{
@@ -96,7 +96,7 @@ def _init_demo_data() -> None:
                 "message_type": "initial",
                 "content": f"Subject: Quick check on invoice #{inv_num}\n\nHi {name},\n\nI was just updating our project folder and noticed the system hasn't checked off the latest invoice (#{inv_num}) as received yet. I know how messy email threads get - did that land in your inbox okay, or should I send a fresh link?\n\nBest,\nAlex\nAcme Digital Ltd",
                 "classification": None,
-                "sent_at": (datetime.utcnow() - timedelta(days=days - 2)).isoformat(),
+                "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 2)).isoformat(),
                 "delivered": True, "opened": True, "replied": False, "metadata": {},
             })
             interactions.append({
@@ -105,7 +105,7 @@ def _init_demo_data() -> None:
                 "message_type": "follow_up",
                 "content": f"Subject: Re: Quick check on invoice #{inv_num}\n\nHi {name},\n\nSending this again in case it got buried - I know how hectic inboxes get. Just wanted to make sure Invoice #{inv_num} landed okay on your end.\n\nBest,\nAlex\nAcme Digital Ltd",
                 "classification": None,
-                "sent_at": (datetime.utcnow() - timedelta(days=days - 4)).isoformat(),
+                "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 4)).isoformat(),
                 "delivered": True, "opened": False, "replied": False, "metadata": {},
             })
         if phase in ("3", "4"):
@@ -115,7 +115,7 @@ def _init_demo_data() -> None:
                 "message_type": "escalation",
                 "content": f"Subject: Re: Invoice #{inv_num} - trying to keep this off the report\n\nHi {name},\n\nIt seems like there's a hurdle on the processing side. I'd hate for our finance lead to flag this for a manual audit next week - it's a huge paperwork headache for everyone.\n\nIs there anything I can provide to help you get this pushed through today?\n\nAlex",
                 "classification": None,
-                "sent_at": (datetime.utcnow() - timedelta(days=days - 8)).isoformat(),
+                "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 8)).isoformat(),
                 "delivered": True, "opened": True, "replied": True, "metadata": {},
             })
             interactions.append({
@@ -124,7 +124,7 @@ def _init_demo_data() -> None:
                 "message_type": "response",
                 "content": "Hi Alex, thanks for the reminder. We're working on it but things have been slow on our end with the new system migration. Should be sorted soon.",
                 "classification": "stall",
-                "sent_at": (datetime.utcnow() - timedelta(days=days - 9)).isoformat(),
+                "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 9)).isoformat(),
                 "delivered": True, "opened": None, "replied": False, "metadata": {},
             })
         if phase == "disputed":
@@ -134,7 +134,7 @@ def _init_demo_data() -> None:
                 "message_type": "response",
                 "content": "We're disputing this invoice. The deliverables outlined in the SOW were not met and we have documented evidence of this. Please have your project lead contact us directly.",
                 "classification": "dispute",
-                "sent_at": (datetime.utcnow() - timedelta(days=days - 10)).isoformat(),
+                "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 10)).isoformat(),
                 "delivered": True, "opened": None, "replied": False, "metadata": {},
             })
 
@@ -358,8 +358,12 @@ async def dashboard_home(request: Request):
 @app.get("/invoices/{invoice_id}", response_class=HTMLResponse)
 async def invoice_detail(invoice_id: str):
     """Invoice detail page with interaction history."""
+    try:
+        uid = UUID(invoice_id)
+    except ValueError:
+        return HTMLResponse(_base_html("Not Found", '<div class="container"><h1>Invalid invoice ID</h1></div>'), status_code=404)
     db = _db()
-    invoice = db.get_invoice(UUID(invoice_id))
+    invoice = db.get_invoice(uid)
     if not invoice:
         return HTMLResponse(_base_html("Not Found", '<div class="container"><h1>Invoice not found</h1></div>'), status_code=404)
 

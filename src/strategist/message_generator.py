@@ -9,6 +9,7 @@ are framed as forwarding your own sent email).
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -72,6 +73,9 @@ def generate_message(ctx: MessageContext) -> GeneratedMessage:
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
     )
+
+    if not message.content or not hasattr(message.content[0], "text"):
+        raise RuntimeError("Empty response from message generation LLM")
 
     raw = message.content[0].text.strip()
     subject, body = _parse_email(raw, ctx)
@@ -199,7 +203,6 @@ def _enforce_banned_words(body: str) -> str:
     for banned in PHASE_1_BANNED_WORDS:
         if banned in lower_body:
             replacement = replacements.get(banned, "outstanding")
-            # Case-insensitive replacement
-            import re
-            body = re.sub(re.escape(banned), replacement, body, flags=re.IGNORECASE)
+            # Case-insensitive word-boundary replacement
+            body = re.sub(r"\b" + re.escape(banned) + r"\b", replacement, body, flags=re.IGNORECASE)
     return body

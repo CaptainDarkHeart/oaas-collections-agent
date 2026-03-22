@@ -7,7 +7,7 @@ Tables: smes, invoices, contacts, interactions, fees.
 from __future__ import annotations
 
 import enum
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
@@ -115,7 +115,7 @@ class SME(BaseModel):
     stripe_customer_id: str | None = None
     discount_authorised: bool = False
     max_discount_percent: Decimal = Decimal("0")
-    onboarded_at: datetime = Field(default_factory=datetime.utcnow)
+    onboarded_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC).replace(tzinfo=None))
     status: SMEStatus = SMEStatus.ACTIVE
 
 
@@ -129,7 +129,7 @@ class Invoice(BaseModel):
     due_date: date
     current_phase: InvoicePhase = InvoicePhase.PHASE_1
     status: InvoiceStatus = InvoiceStatus.ACTIVE
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC).replace(tzinfo=None))
     resolved_at: datetime | None = None
     fee_charged: bool = False
     fee_amount: Decimal | None = None
@@ -161,7 +161,7 @@ class Interaction(BaseModel):
     message_type: MessageType
     content: str
     classification: Classification | None = None
-    sent_at: datetime = Field(default_factory=datetime.utcnow)
+    sent_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC).replace(tzinfo=None))
     delivered: bool = False
     opened: bool | None = None
     replied: bool = False
@@ -177,7 +177,7 @@ class Fee(BaseModel):
     invoice_amount_recovered: Decimal
     stripe_payment_intent_id: str | None = None
     status: FeeStatus = FeeStatus.PENDING
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC).replace(tzinfo=None))
     charged_at: datetime | None = None
 
 
@@ -338,7 +338,7 @@ class Database:
         if isinstance(v, UUID):
             return str(v)
         if isinstance(v, Decimal):
-            return float(v)
+            return str(v)
         if isinstance(v, (datetime, date)):
             return v.isoformat()
         if isinstance(v, enum.Enum):

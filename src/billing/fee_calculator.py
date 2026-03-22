@@ -29,6 +29,9 @@ def calculate_fee(
     Returns:
         A Fee object (not yet persisted) with the calculated amount.
     """
+    if invoice_amount <= 0:
+        raise ValueError(f"Invoice amount must be positive, got {invoice_amount}")
+
     threshold = Decimal(str(settings.fee_percentage_threshold))
     percentage = Decimal(str(settings.fee_percentage))
     flat_amount = Decimal(str(settings.fee_flat_amount))

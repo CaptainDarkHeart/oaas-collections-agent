@@ -13,8 +13,10 @@ Can be run as a one-shot daily job (cron) or as a long-running scheduler.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID
+
+import anthropic
 
 from src.config import settings
 from src.db.models import (
@@ -48,7 +50,7 @@ def run_daily_cycle(db: Database | None = None, email_client: InstantlyClient | 
     email_client = email_client or InstantlyClient()
     emails_sent_today = 0
 
-    logger.info("Starting daily cycle at %s", datetime.utcnow().isoformat())
+    logger.info("Starting daily cycle at %s", datetime.now(tz=UTC).replace(tzinfo=None).isoformat())
 
     for sme in db.list_active_smes():
         sme_id = sme["id"]
@@ -167,7 +169,7 @@ def _process_invoice(
 
     try:
         msg = generate_message(ctx)
-    except Exception:
+    except (anthropic.APIError, RuntimeError):
         logger.exception("Failed to generate message for invoice %s", invoice["invoice_number"])
         return False
 
@@ -202,7 +204,7 @@ def _process_invoice(
         direction=Direction.OUTBOUND,
         message_type=message_type,
         content=f"Subject: {msg.subject}\n\n{msg.body}",
-        sent_at=datetime.utcnow(),
+        sent_at=datetime.now(tz=UTC).replace(tzinfo=None),
         delivered=True,
         metadata={"message_id": result.message_id, "is_reply_to_sent": msg.is_reply_to_sent},
     )
@@ -252,7 +254,7 @@ def process_inbound_reply(
         message_type=MessageType.RESPONSE,
         content=reply_text,
         classification=classification,
-        sent_at=datetime.utcnow(),
+        sent_at=datetime.now(tz=UTC).replace(tzinfo=None),
         delivered=True,
         replied=True,
     )

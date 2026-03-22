@@ -11,7 +11,7 @@ Key rules from the spec:
 from __future__ import annotations
 
 import random
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from src.db.models import InvoicePhase
 from src.strategist.state_machine import PHASE_FOLLOWUPS, PHASE_SCHEDULE
@@ -141,5 +141,5 @@ def can_contact_today(last_contact_at: datetime | None) -> bool:
     """Check if enough time has passed since the last contact."""
     if last_contact_at is None:
         return True
-    gap = datetime.utcnow() - last_contact_at
+    gap = datetime.now(UTC).replace(tzinfo=None) - last_contact_at
     return gap >= timedelta(hours=MIN_CONTACT_GAP_HOURS)

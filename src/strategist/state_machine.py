@@ -17,7 +17,7 @@ Transitions triggered by:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from src.db.models import (
@@ -191,7 +191,7 @@ def should_escalate(
     if accelerated:
         duration = max(1, duration - 2)
 
-    elapsed = (datetime.utcnow() - last_outbound_at).days
+    elapsed = (datetime.now(UTC).replace(tzinfo=None) - last_outbound_at).days
     return elapsed >= duration
 
 

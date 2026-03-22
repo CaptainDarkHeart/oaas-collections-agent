@@ -1,6 +1,6 @@
 """Tests for the variable cadence engine."""
 
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from src.db.models import InvoicePhase
 from src.executor.cadence import (
@@ -62,7 +62,7 @@ class TestScheduleNextSend:
         assert result is None
 
     def test_respects_min_contact_gap(self):
-        recent = datetime.utcnow() - timedelta(hours=2)
+        recent = datetime.now(tz=UTC).replace(tzinfo=None) - timedelta(hours=2)
         result = schedule_next_send(
             phase=InvoicePhase.PHASE_1,
             phase_start_date=date.today(),
@@ -106,9 +106,9 @@ class TestCanContactToday:
         assert can_contact_today(None) is True
 
     def test_contacted_recently(self):
-        recent = datetime.utcnow() - timedelta(hours=2)
+        recent = datetime.now(tz=UTC).replace(tzinfo=None) - timedelta(hours=2)
         assert can_contact_today(recent) is False
 
     def test_contacted_long_ago(self):
-        old = datetime.utcnow() - timedelta(hours=25)
+        old = datetime.now(tz=UTC).replace(tzinfo=None) - timedelta(hours=25)
         assert can_contact_today(old) is True

@@ -1,6 +1,6 @@
 """Tests for the phase progression state machine."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -101,16 +101,16 @@ class TestShouldEscalate:
         assert should_escalate(InvoicePhase.PHASE_1, None) is True
 
     def test_recent_outbound_should_not_escalate(self):
-        last = datetime.utcnow() - timedelta(days=1)
+        last = datetime.now(tz=UTC).replace(tzinfo=None) - timedelta(days=1)
         assert should_escalate(InvoicePhase.PHASE_1, last) is False
 
     def test_old_outbound_should_escalate(self):
-        last = datetime.utcnow() - timedelta(days=6)
+        last = datetime.now(tz=UTC).replace(tzinfo=None) - timedelta(days=6)
         assert should_escalate(InvoicePhase.PHASE_1, last) is True
 
     def test_accelerated_reduces_duration(self):
         # Phase 1 duration is 5 days, accelerated reduces by 2 → 3 days
-        last = datetime.utcnow() - timedelta(days=3)
+        last = datetime.now(tz=UTC).replace(tzinfo=None) - timedelta(days=3)
         assert should_escalate(InvoicePhase.PHASE_1, last, accelerated=False) is False
         assert should_escalate(InvoicePhase.PHASE_1, last, accelerated=True) is True
 

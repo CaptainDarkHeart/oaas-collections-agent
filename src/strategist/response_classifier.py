@@ -42,6 +42,9 @@ def classify_response(reply_text: str) -> tuple[Classification, str]:
         messages=[{"role": "user", "content": prompt}],
     )
 
+    if not message.content or not hasattr(message.content[0], "text"):
+        return Classification.STALL, "Empty response from classifier LLM"
+
     raw = message.content[0].text.strip()
     return _parse_classification(raw)
 
