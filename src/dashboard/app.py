@@ -1,7 +1,7 @@
 """FastAPI dashboard for the OaaS Collections Agent.
 
-Starling Bank-inspired design: deep purple-navy, cyan accents,
-clean sand backgrounds, generous spacing, premium fintech feel.
+TactfulPay-inspired design: clean white nav, emerald green accents,
+light slate backgrounds, generous spacing, premium fintech feel.
 
 Provides:
 - Invoice dashboard with stats, search/filter, and status overview
@@ -395,22 +395,22 @@ def _demo_db():
 # ---------------------------------------------------------------------------
 
 COLORS = {
-    "navy": "#321E37",
-    "navy_light": "#4A2E52",
-    "navy_dark": "#231028",
-    "cyan": "#50FFEB",
-    "cyan_muted": "#3DD4C4",
-    "cyan_pale": "#E8FFFE",
-    "purple": "#6935D3",
-    "purple_light": "#8B5CF6",
-    "sand": "#F7F5F0",
-    "sand_dark": "#EDE9E0",
+    "navy": "#0F172A",
+    "navy_light": "#1E293B",
+    "navy_dark": "#020617",
+    "cyan": "#22C55E",
+    "cyan_muted": "#16A34A",
+    "cyan_pale": "#F0FDF4",
+    "purple": "#22C55E",
+    "purple_light": "#4ADE80",
+    "sand": "#F8FAFC",
+    "sand_dark": "#F1F5F9",
     "white": "#FFFFFF",
-    "text_primary": "#321E37",
-    "text_secondary": "#6B6176",
-    "text_muted": "#A3A9BA",
-    "border": "#E8E4DD",
-    "success": "#10B981",
+    "text_primary": "#0F172A",
+    "text_secondary": "#475569",
+    "text_muted": "#94A3B8",
+    "border": "#E2E8F0",
+    "success": "#22C55E",
     "warning": "#F59E0B",
     "danger": "#EF4444",
     "info": "#3B82F6",
@@ -568,13 +568,13 @@ async def invoice_detail(invoice_id: str):
         classification_tag = ""
         if ix.get("classification"):
             cls_name = ix["classification"].replace("_", " ").upper()
-            cls_color = "#EF4444" if ix["classification"] in ("dispute", "hostile") else "#6935D3"
+            cls_color = "#EF4444" if ix["classification"] in ("dispute", "hostile") else "#22C55E"
             classification_tag = (
                 f'<span class="timeline-classification" style="color:{cls_color}">{cls_name}</span>'
             )
 
         sent_at = ix["sent_at"][:16].replace("T", " ")
-        border_color = "#6935D3" if is_outbound else "#50FFEB"
+        border_color = "#22C55E" if is_outbound else "#0F172A"
 
         timeline += f"""<div class="timeline-item {"timeline-outbound" if is_outbound else "timeline-inbound"}">
             <div class="timeline-marker" style="background:{border_color}"></div>
@@ -759,8 +759,8 @@ def _base_html(title: str, content: str) -> str:
     <title>{title} — OaaS</title>
     <style>
         /* ================================================================
-           OaaS Design System — Starling Bank inspired
-           Deep purple-navy + cyan accent + sand backgrounds
+           OaaS Design System — TactfulPay inspired
+           Dark navy + emerald green accent + light slate backgrounds
            ================================================================ */
 
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -788,9 +788,9 @@ def _base_html(title: str, content: str) -> str:
             --radius-md: 12px;
             --radius-lg: 16px;
             --radius-xl: 24px;
-            --shadow-sm: 0 1px 2px rgba(50, 30, 55, 0.04);
-            --shadow-md: 0 4px 12px rgba(50, 30, 55, 0.06);
-            --shadow-lg: 0 8px 30px rgba(50, 30, 55, 0.08);
+            --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+            --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+            --shadow-lg: 0 8px 30px rgba(15, 23, 42, 0.12);
         }}
 
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -805,7 +805,8 @@ def _base_html(title: str, content: str) -> str:
 
         /* Nav */
         .nav {{
-            background: var(--navy);
+            background: var(--white);
+            border-bottom: 1px solid var(--border);
             padding: 0 32px;
             display: flex;
             align-items: center;
@@ -824,19 +825,19 @@ def _base_html(title: str, content: str) -> str:
         .nav-logo {{
             width: 36px;
             height: 36px;
-            background: var(--cyan);
+            background: var(--navy);
             border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 700;
             font-size: 16px;
-            color: var(--navy);
+            color: var(--cyan);
         }}
         .nav-title {{
             font-size: 18px;
             font-weight: 600;
-            color: var(--white);
+            color: var(--navy);
             letter-spacing: -0.3px;
         }}
         .nav-title span {{
@@ -849,7 +850,7 @@ def _base_html(title: str, content: str) -> str:
             gap: 8px;
         }}
         .nav-link {{
-            color: rgba(255,255,255,0.65);
+            color: var(--text-secondary);
             text-decoration: none;
             font-size: 14px;
             font-weight: 500;
@@ -858,8 +859,8 @@ def _base_html(title: str, content: str) -> str:
             transition: all 0.15s ease;
         }}
         .nav-link:hover, .nav-link.active {{
-            color: var(--white);
-            background: rgba(255,255,255,0.08);
+            color: var(--navy);
+            background: var(--sand);
         }}
 
         /* Container */
@@ -1053,12 +1054,12 @@ def _base_html(title: str, content: str) -> str:
         }}
         .btn-primary {{
             background: var(--cyan);
-            color: var(--navy);
+            color: var(--white);
         }}
         .btn-primary:hover {{
             background: var(--cyan-muted);
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(80, 255, 235, 0.3);
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
         }}
         .btn-secondary {{
             background: var(--navy);
