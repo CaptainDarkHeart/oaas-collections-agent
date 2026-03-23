@@ -16,11 +16,13 @@ from __future__ import annotations
 import os
 import secrets
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.staticfiles import StaticFiles
 
 from src.db.models import InvoicePhase, InvoiceStatus
 
@@ -47,6 +49,17 @@ app = FastAPI(
     version="0.1.0",
     dependencies=[Depends(_require_auth)],
 )
+
+
+@app.get("/health", dependencies=[])
+async def health() -> dict[str, str]:
+    """Health check endpoint (no auth required)."""
+    return {"status": "ok"}
+
+
+# Serve static assets (logos, etc.)
+_STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 # Mount webhook router (no auth — webhooks use their own signature verification)
 from src.sentry.webhook_handler import router as webhook_router
@@ -756,7 +769,8 @@ def _base_html(title: str, content: str) -> str:
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{title} — OaaS</title>
+    <title>{title} — TactfulPay</title>
+    <link rel="icon" type="image/png" href="/static/logo-square.png">
     <style>
         /* ================================================================
            OaaS Design System — TactfulPay inspired
@@ -823,16 +837,13 @@ def _base_html(title: str, content: str) -> str:
             text-decoration: none;
         }}
         .nav-logo {{
-            width: 36px;
-            height: 36px;
-            background: var(--navy);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 16px;
-            color: var(--cyan);
+            height: 40px;
+            width: auto;
+        }}
+        .nav-logo img {{
+            height: 100%;
+            width: auto;
+            display: block;
         }}
         .nav-title {{
             font-size: 18px;
@@ -843,6 +854,13 @@ def _base_html(title: str, content: str) -> str:
         .nav-title span {{
             color: var(--cyan);
             font-weight: 400;
+        }}
+        /* Show letterbox logo on desktop, square icon on mobile */
+        .logo-letterbox {{ display: block; }}
+        .logo-square {{ display: none; }}
+        @media (max-width: 600px) {{
+            .logo-letterbox {{ display: none; }}
+            .logo-square {{ display: block; }}
         }}
         .nav-links {{
             display: flex;
@@ -1349,8 +1367,10 @@ def _base_html(title: str, content: str) -> str:
 <body>
     <nav class="nav">
         <a href="/" class="nav-brand">
-            <div class="nav-logo">O</div>
-            <div class="nav-title">OaaS <span>Collections</span></div>
+            <div class="nav-logo">
+                <img src="/static/logo-letterbox.png" alt="TactfulPay" class="logo-letterbox">
+                <img src="/static/logo-square.png" alt="TactfulPay" class="logo-square">
+            </div>
         </a>
         <div class="nav-links">
             <a href="/" class="nav-link active">Dashboard</a>
