@@ -24,9 +24,7 @@ class TestParseClassification:
         assert "amount" in justification
 
     def test_standard_format_with_em_dash(self):
-        result, justification = _parse_classification(
-            "HOSTILE — Sender demands no further contact"
-        )
+        result, justification = _parse_classification("HOSTILE — Sender demands no further contact")
         assert result == Classification.HOSTILE
 
     def test_category_only(self):
@@ -55,7 +53,5 @@ class TestParseClassification:
         assert result == Classification.PAYMENT_PENDING
 
     def test_no_response(self):
-        result, _ = _parse_classification(
-            "NO_RESPONSE - No reply received within the window"
-        )
+        result, _ = _parse_classification("NO_RESPONSE - No reply received within the window")
         assert result == Classification.NO_RESPONSE

@@ -10,8 +10,6 @@ from datetime import UTC, date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-import pytest
-
 from src.db.models import (
     Channel,
     Classification,
@@ -29,7 +27,6 @@ from src.main import (
 )
 from src.strategist.message_generator import GeneratedMessage
 from src.strategist.state_machine import TransitionResult
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -168,7 +165,9 @@ class TestRunDailyCycle:
     @patch("src.main.schedule_next_send")
     def test_stops_at_daily_email_limit(self, mock_schedule, mock_send, mock_gen):
         """Daily cycle stops when 30-email limit is reached."""
-        invoices = [_make_invoice(id=str(uuid4()), invoice_number=f"INV-{i:03d}") for i in range(35)]
+        invoices = [
+            _make_invoice(id=str(uuid4()), invoice_number=f"INV-{i:03d}") for i in range(35)
+        ]
         db = _mock_db()
         db.list_active_invoices.return_value = invoices
 
@@ -338,7 +337,12 @@ class TestProcessInvoice:
     @patch("src.main._send_notifications")
     @patch("src.main.should_escalate", return_value=True)
     @patch("src.main.handle_classification")
-    def test_escalation_to_human_review_sends_notifications(self, mock_handle, mock_esc, mock_notify):
+    def test_escalation_to_human_review_sends_notifications(
+        self,
+        mock_handle,
+        mock_esc,
+        mock_notify,
+    ):
         """When phase 4 exhausts, human_review triggers notifications."""
         mock_handle.return_value = TransitionResult(
             action="human_review",
@@ -362,7 +366,14 @@ class TestProcessInvoice:
     @patch("src.main.schedule_next_send")
     @patch("src.main.should_escalate", return_value=True)
     @patch("src.main.handle_classification")
-    def test_escalation_refreshes_phase(self, mock_handle, mock_esc, mock_schedule, mock_send, mock_gen):
+    def test_escalation_refreshes_phase(
+        self,
+        mock_handle,
+        mock_esc,
+        mock_schedule,
+        mock_send,
+        mock_gen,
+    ):
         """After escalation, the updated phase is used for message generation."""
         mock_handle.return_value = TransitionResult(
             action="escalate_phase",
@@ -402,7 +413,9 @@ class TestProcessInvoice:
 
         mock_schedule.return_value = _NOW - timedelta(hours=1)
         mock_gen.return_value = GeneratedMessage(
-            subject="Re: Check on INV-001", body="Bump", is_reply_to_sent=True,
+            subject="Re: Check on INV-001",
+            body="Bump",
+            is_reply_to_sent=True,
         )
         mock_send.return_value = EmailResult(success=True, message_id="msg-r1")
 
@@ -425,7 +438,9 @@ class TestProcessInvoice:
 
         mock_schedule.return_value = _NOW - timedelta(hours=1)
         mock_gen.return_value = GeneratedMessage(
-            subject="New subject", body="Hello", is_reply_to_sent=False,
+            subject="New subject",
+            body="Hello",
+            is_reply_to_sent=False,
         )
         mock_send.return_value = EmailResult(success=True, message_id="msg-n1")
 
@@ -443,7 +458,10 @@ class TestProcessInvoice:
 class TestProcessInboundReply:
     """Tests for inbound reply processing and classification routing."""
 
-    @patch("src.main.classify_response", return_value=(Classification.PROMISE_TO_PAY, "Will pay Friday"))
+    @patch(
+        "src.main.classify_response",
+        return_value=(Classification.PROMISE_TO_PAY, "Will pay Friday"),
+    )
     @patch("src.main.handle_classification")
     @patch("src.main.email_alerts")
     def test_promise_to_pay_logs_and_notifies_sme(self, mock_alerts, mock_handle, mock_classify):
@@ -452,8 +470,10 @@ class TestProcessInboundReply:
         db = _mock_db()
 
         process_inbound_reply(
-            db, _mock_email_client(),
-            invoice_id=uuid4(), contact_id=uuid4(),
+            db,
+            _mock_email_client(),
+            invoice_id=uuid4(),
+            contact_id=uuid4(),
             reply_text="I'll pay on Friday",
         )
 
@@ -467,7 +487,10 @@ class TestProcessInboundReply:
         # SME notified
         mock_alerts.alert_promise_to_pay.assert_called_once()
 
-    @patch("src.main.classify_response", return_value=(Classification.DISPUTE, "Disputing deliverables"))
+    @patch(
+        "src.main.classify_response",
+        return_value=(Classification.DISPUTE, "Disputing deliverables"),
+    )
     @patch("src.main.handle_classification")
     @patch("src.main.email_alerts")
     @patch("src.main.slack_webhook")
@@ -484,8 +507,10 @@ class TestProcessInboundReply:
         db = _mock_db()
 
         process_inbound_reply(
-            db, _mock_email_client(),
-            invoice_id=uuid4(), contact_id=uuid4(),
+            db,
+            _mock_email_client(),
+            invoice_id=uuid4(),
+            contact_id=uuid4(),
             reply_text="We dispute this invoice",
         )
 
@@ -493,7 +518,10 @@ class TestProcessInboundReply:
         mock_slack.notify_dispute.assert_called_once()
         mock_email.alert_dispute.assert_called_once()
 
-    @patch("src.main.classify_response", return_value=(Classification.HOSTILE, "Threatening language"))
+    @patch(
+        "src.main.classify_response",
+        return_value=(Classification.HOSTILE, "Threatening language"),
+    )
     @patch("src.main.handle_classification")
     @patch("src.main.email_alerts")
     @patch("src.main.slack_webhook")
@@ -510,8 +538,10 @@ class TestProcessInboundReply:
         db = _mock_db()
 
         process_inbound_reply(
-            db, _mock_email_client(),
-            invoice_id=uuid4(), contact_id=uuid4(),
+            db,
+            _mock_email_client(),
+            invoice_id=uuid4(),
+            contact_id=uuid4(),
             reply_text="Do not contact us again!",
         )
 
@@ -523,12 +553,17 @@ class TestProcessInboundReply:
     @patch("src.main.handle_classification")
     def test_redirect_logs_interaction(self, mock_handle, mock_classify):
         """REDIRECT logs the interaction (new contact extraction is TODO)."""
-        mock_handle.return_value = TransitionResult(action="redirect", message="Redirect to new contact.")
+        mock_handle.return_value = TransitionResult(
+            action="redirect",
+            message="Redirect to new contact.",
+        )
         db = _mock_db()
 
         process_inbound_reply(
-            db, _mock_email_client(),
-            invoice_id=uuid4(), contact_id=uuid4(),
+            db,
+            _mock_email_client(),
+            invoice_id=uuid4(),
+            contact_id=uuid4(),
             reply_text="Please contact accounts@widgetcorp.com",
         )
 
@@ -538,12 +573,18 @@ class TestProcessInboundReply:
     @patch("src.main.handle_classification")
     def test_stall_logs_interaction_no_special_notification(self, mock_handle, mock_classify):
         """STALL logs interaction but doesn't trigger special notifications."""
-        mock_handle.return_value = TransitionResult(action="send_message", accelerated=True, message="Continue.")
+        mock_handle.return_value = TransitionResult(
+            action="send_message",
+            accelerated=True,
+            message="Continue.",
+        )
         db = _mock_db()
 
         process_inbound_reply(
-            db, _mock_email_client(),
-            invoice_id=uuid4(), contact_id=uuid4(),
+            db,
+            _mock_email_client(),
+            invoice_id=uuid4(),
+            contact_id=uuid4(),
             reply_text="We're looking into it",
         )
 
@@ -557,8 +598,10 @@ class TestProcessInboundReply:
         db = _mock_db(get_invoice=None)
 
         process_inbound_reply(
-            db, _mock_email_client(),
-            invoice_id=uuid4(), contact_id=uuid4(),
+            db,
+            _mock_email_client(),
+            invoice_id=uuid4(),
+            contact_id=uuid4(),
             reply_text="Hello",
         )
 
@@ -573,8 +616,10 @@ class TestProcessInboundReply:
         db = _mock_db(get_sme=None)
 
         process_inbound_reply(
-            db, _mock_email_client(),
-            invoice_id=uuid4(), contact_id=uuid4(),
+            db,
+            _mock_email_client(),
+            invoice_id=uuid4(),
+            contact_id=uuid4(),
             reply_text="I'll pay soon",
         )
 
@@ -592,7 +637,6 @@ class TestGetPhaseStartDate:
 
     def test_returns_first_outbound_in_phase(self):
         """Returns the sent_at date of the first outbound in the current phase."""
-        sent_at = (_NOW - timedelta(days=5)).isoformat()
         interactions = [
             _make_outbound_interaction(phase="1", days_ago=5),
             _make_outbound_interaction(phase="1", days_ago=3),

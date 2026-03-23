@@ -9,6 +9,7 @@ Business rules:
 from __future__ import annotations
 
 from decimal import Decimal
+from uuid import UUID
 
 from src.config import settings
 from src.db.models import Fee, FeeStatus, FeeType
@@ -16,8 +17,8 @@ from src.db.models import Fee, FeeStatus, FeeType
 
 def calculate_fee(
     invoice_amount: Decimal,
-    sme_id: str,
-    invoice_id: str,
+    sme_id: UUID | str,
+    invoice_id: UUID | str,
 ) -> Fee:
     """Calculate the recovery fee for a successfully collected invoice.
 
@@ -44,8 +45,8 @@ def calculate_fee(
         fee_type = FeeType.FLAT
 
     return Fee(
-        invoice_id=invoice_id,
-        sme_id=sme_id,
+        invoice_id=UUID(str(invoice_id)),
+        sme_id=UUID(str(sme_id)),
         fee_type=fee_type,
         fee_amount=fee_amount,
         invoice_amount_recovered=invoice_amount,

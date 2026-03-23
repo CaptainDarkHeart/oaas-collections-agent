@@ -32,6 +32,7 @@ def _db():
     if DEMO_MODE:
         return _demo_db()
     from src.db.models import Database
+
     return Database()
 
 
@@ -51,22 +52,94 @@ def _init_demo_data() -> None:
 
     sme_id = _DEMO_SME_ID
     test_data = [
-        ("INV-2025-001", "BigCorp International", "7500.00", 65, "1", "active",
-         "Jane Smith", "jane.smith@bigcorp.example.com", "AP Manager"),
-        ("INV-2025-002", "MegaTech Solutions", "3200.00", 72, "2", "active",
-         "Tom Brown", "tom.brown@megatech.example.com", "Finance Director"),
-        ("INV-2025-003", "Global Services Ltd", "12000.00", 90, "3", "active",
-         "Sarah Johnson", "s.johnson@globalservices.example.com", "CFO"),
-        ("INV-2025-004", "Enterprise Holdings", "4800.00", 61, "1", "active",
-         "Mike Davis", "m.davis@enterprise.example.com", "Accounts Payable"),
-        ("INV-2025-005", "StartupCo", "1500.00", 120, "4", "paused",
-         "Alex Turner", "alex@startupco.example.com", "CEO"),
-        ("INV-2025-006", "Nordic Digital AS", "9200.00", 80, "2", "active",
-         "Erik Larsen", "erik@nordicdigital.example.com", "Head of Finance"),
-        ("INV-2025-007", "Catalyst Partners", "6100.00", 68, "disputed", "disputed",
-         "Rachel Green", "r.green@catalyst.example.com", "Operations Director"),
-        ("INV-2025-008", "Whitmore & Co", "2800.00", 45, "resolved", "paid",
-         "James Whitmore", "james@whitmore.example.com", "Managing Partner"),
+        (
+            "INV-2025-001",
+            "BigCorp International",
+            "7500.00",
+            65,
+            "1",
+            "active",
+            "Jane Smith",
+            "jane.smith@bigcorp.example.com",
+            "AP Manager",
+        ),
+        (
+            "INV-2025-002",
+            "MegaTech Solutions",
+            "3200.00",
+            72,
+            "2",
+            "active",
+            "Tom Brown",
+            "tom.brown@megatech.example.com",
+            "Finance Director",
+        ),
+        (
+            "INV-2025-003",
+            "Global Services Ltd",
+            "12000.00",
+            90,
+            "3",
+            "active",
+            "Sarah Johnson",
+            "s.johnson@globalservices.example.com",
+            "CFO",
+        ),
+        (
+            "INV-2025-004",
+            "Enterprise Holdings",
+            "4800.00",
+            61,
+            "1",
+            "active",
+            "Mike Davis",
+            "m.davis@enterprise.example.com",
+            "Accounts Payable",
+        ),
+        (
+            "INV-2025-005",
+            "StartupCo",
+            "1500.00",
+            120,
+            "4",
+            "paused",
+            "Alex Turner",
+            "alex@startupco.example.com",
+            "CEO",
+        ),
+        (
+            "INV-2025-006",
+            "Nordic Digital AS",
+            "9200.00",
+            80,
+            "2",
+            "active",
+            "Erik Larsen",
+            "erik@nordicdigital.example.com",
+            "Head of Finance",
+        ),
+        (
+            "INV-2025-007",
+            "Catalyst Partners",
+            "6100.00",
+            68,
+            "disputed",
+            "disputed",
+            "Rachel Green",
+            "r.green@catalyst.example.com",
+            "Operations Director",
+        ),
+        (
+            "INV-2025-008",
+            "Whitmore & Co",
+            "2800.00",
+            45,
+            "resolved",
+            "paid",
+            "James Whitmore",
+            "james@whitmore.example.com",
+            "Managing Partner",
+        ),
     ]
 
     for inv_num, debtor, amount, days, phase, status, name, email, role in test_data:
@@ -75,68 +148,128 @@ def _init_demo_data() -> None:
         due = (date.today() - timedelta(days=days)).isoformat()
 
         _DEMO_INVOICES[inv_id] = {
-            "id": inv_id, "sme_id": sme_id, "invoice_number": inv_num,
-            "debtor_company": debtor, "amount": amount, "currency": "GBP",
-            "due_date": due, "current_phase": phase, "status": status,
+            "id": inv_id,
+            "sme_id": sme_id,
+            "invoice_number": inv_num,
+            "debtor_company": debtor,
+            "amount": amount,
+            "currency": "GBP",
+            "due_date": due,
+            "current_phase": phase,
+            "status": status,
             "created_at": (datetime.now(tz=UTC) - timedelta(days=days)).isoformat(),
-            "resolved_at": None, "fee_charged": False, "fee_amount": None,
+            "resolved_at": None,
+            "fee_charged": False,
+            "fee_amount": None,
         }
-        _DEMO_CONTACTS[inv_id] = [{
-            "id": contact_id, "invoice_id": inv_id, "name": name,
-            "email": email, "phone": "+4477009001XX", "role": role,
-            "is_primary": True, "source": "csv_upload",
-        }]
+        _DEMO_CONTACTS[inv_id] = [
+            {
+                "id": contact_id,
+                "invoice_id": inv_id,
+                "name": name,
+                "email": email,
+                "phone": "+4477009001XX",
+                "role": role,
+                "is_primary": True,
+                "source": "csv_upload",
+            }
+        ]
 
         # Add some demo interactions for invoices past Phase 1
         interactions = []
         if phase in ("2", "3", "4", "disputed"):
-            interactions.append({
-                "id": str(uuid4()), "invoice_id": inv_id, "contact_id": contact_id,
-                "phase": 1, "channel": "email", "direction": "outbound",
-                "message_type": "initial",
-                "content": f"Subject: Quick check on invoice #{inv_num}\n\nHi {name},\n\nI was just updating our project folder and noticed the system hasn't checked off the latest invoice (#{inv_num}) as received yet. I know how messy email threads get - did that land in your inbox okay, or should I send a fresh link?\n\nBest,\nAlex\nAcme Digital Ltd",
-                "classification": None,
-                "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 2)).isoformat(),
-                "delivered": True, "opened": True, "replied": False, "metadata": {},
-            })
-            interactions.append({
-                "id": str(uuid4()), "invoice_id": inv_id, "contact_id": contact_id,
-                "phase": 1, "channel": "email", "direction": "outbound",
-                "message_type": "follow_up",
-                "content": f"Subject: Re: Quick check on invoice #{inv_num}\n\nHi {name},\n\nSending this again in case it got buried - I know how hectic inboxes get. Just wanted to make sure Invoice #{inv_num} landed okay on your end.\n\nBest,\nAlex\nAcme Digital Ltd",
-                "classification": None,
-                "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 4)).isoformat(),
-                "delivered": True, "opened": False, "replied": False, "metadata": {},
-            })
+            interactions.append(
+                {
+                    "id": str(uuid4()),
+                    "invoice_id": inv_id,
+                    "contact_id": contact_id,
+                    "phase": 1,
+                    "channel": "email",
+                    "direction": "outbound",
+                    "message_type": "initial",
+                    "content": f"Subject: Quick check on invoice #{inv_num}\n\nHi {name},\n\nI was just updating our project folder and noticed the system hasn't checked off the latest invoice (#{inv_num}) as received yet. I know how messy email threads get - did that land in your inbox okay, or should I send a fresh link?\n\nBest,\nAlex\nAcme Digital Ltd",
+                    "classification": None,
+                    "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 2)).isoformat(),
+                    "delivered": True,
+                    "opened": True,
+                    "replied": False,
+                    "metadata": {},
+                }
+            )
+            interactions.append(
+                {
+                    "id": str(uuid4()),
+                    "invoice_id": inv_id,
+                    "contact_id": contact_id,
+                    "phase": 1,
+                    "channel": "email",
+                    "direction": "outbound",
+                    "message_type": "follow_up",
+                    "content": f"Subject: Re: Quick check on invoice #{inv_num}\n\nHi {name},\n\nSending this again in case it got buried - I know how hectic inboxes get. Just wanted to make sure Invoice #{inv_num} landed okay on your end.\n\nBest,\nAlex\nAcme Digital Ltd",
+                    "classification": None,
+                    "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 4)).isoformat(),
+                    "delivered": True,
+                    "opened": False,
+                    "replied": False,
+                    "metadata": {},
+                }
+            )
         if phase in ("3", "4"):
-            interactions.append({
-                "id": str(uuid4()), "invoice_id": inv_id, "contact_id": contact_id,
-                "phase": 2, "channel": "email", "direction": "outbound",
-                "message_type": "escalation",
-                "content": f"Subject: Re: Invoice #{inv_num} - trying to keep this off the report\n\nHi {name},\n\nIt seems like there's a hurdle on the processing side. I'd hate for our finance lead to flag this for a manual audit next week - it's a huge paperwork headache for everyone.\n\nIs there anything I can provide to help you get this pushed through today?\n\nAlex",
-                "classification": None,
-                "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 8)).isoformat(),
-                "delivered": True, "opened": True, "replied": True, "metadata": {},
-            })
-            interactions.append({
-                "id": str(uuid4()), "invoice_id": inv_id, "contact_id": contact_id,
-                "phase": 2, "channel": "email", "direction": "inbound",
-                "message_type": "response",
-                "content": "Hi Alex, thanks for the reminder. We're working on it but things have been slow on our end with the new system migration. Should be sorted soon.",
-                "classification": "stall",
-                "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 9)).isoformat(),
-                "delivered": True, "opened": None, "replied": False, "metadata": {},
-            })
+            interactions.append(
+                {
+                    "id": str(uuid4()),
+                    "invoice_id": inv_id,
+                    "contact_id": contact_id,
+                    "phase": 2,
+                    "channel": "email",
+                    "direction": "outbound",
+                    "message_type": "escalation",
+                    "content": f"Subject: Re: Invoice #{inv_num} - trying to keep this off the report\n\nHi {name},\n\nIt seems like there's a hurdle on the processing side. I'd hate for our finance lead to flag this for a manual audit next week - it's a huge paperwork headache for everyone.\n\nIs there anything I can provide to help you get this pushed through today?\n\nAlex",
+                    "classification": None,
+                    "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 8)).isoformat(),
+                    "delivered": True,
+                    "opened": True,
+                    "replied": True,
+                    "metadata": {},
+                }
+            )
+            interactions.append(
+                {
+                    "id": str(uuid4()),
+                    "invoice_id": inv_id,
+                    "contact_id": contact_id,
+                    "phase": 2,
+                    "channel": "email",
+                    "direction": "inbound",
+                    "message_type": "response",
+                    "content": "Hi Alex, thanks for the reminder. We're working on it but things have been slow on our end with the new system migration. Should be sorted soon.",
+                    "classification": "stall",
+                    "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 9)).isoformat(),
+                    "delivered": True,
+                    "opened": None,
+                    "replied": False,
+                    "metadata": {},
+                }
+            )
         if phase == "disputed":
-            interactions.append({
-                "id": str(uuid4()), "invoice_id": inv_id, "contact_id": contact_id,
-                "phase": 2, "channel": "email", "direction": "inbound",
-                "message_type": "response",
-                "content": "We're disputing this invoice. The deliverables outlined in the SOW were not met and we have documented evidence of this. Please have your project lead contact us directly.",
-                "classification": "dispute",
-                "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 10)).isoformat(),
-                "delivered": True, "opened": None, "replied": False, "metadata": {},
-            })
+            interactions.append(
+                {
+                    "id": str(uuid4()),
+                    "invoice_id": inv_id,
+                    "contact_id": contact_id,
+                    "phase": 2,
+                    "channel": "email",
+                    "direction": "inbound",
+                    "message_type": "response",
+                    "content": "We're disputing this invoice. The deliverables outlined in the SOW were not met and we have documented evidence of this. Please have your project lead contact us directly.",
+                    "classification": "dispute",
+                    "sent_at": (datetime.now(tz=UTC) - timedelta(days=days - 10)).isoformat(),
+                    "delivered": True,
+                    "opened": None,
+                    "replied": False,
+                    "metadata": {},
+                }
+            )
 
         _DEMO_INTERACTIONS[inv_id] = interactions
 
@@ -146,9 +279,16 @@ class _DemoDatabase:
 
     def list_active_smes(self):
         _init_demo_data()
-        return [{"id": _DEMO_SME_ID, "company_name": "Acme Digital Ltd",
-                 "contact_email": "owner@acmedigital.co.uk", "discount_authorised": True,
-                 "max_discount_percent": 3, "status": "active"}]
+        return [
+            {
+                "id": _DEMO_SME_ID,
+                "company_name": "Acme Digital Ltd",
+                "contact_email": "owner@acmedigital.co.uk",
+                "discount_authorised": True,
+                "max_discount_percent": 3,
+                "status": "active",
+            }
+        ]
 
     def list_active_invoices(self, sme_id=None):
         _init_demo_data()
@@ -185,11 +325,14 @@ class _DemoDatabase:
         def __init__(self, data):
             self._data = data
             self._filters = {}
+
         def select(self, *a):
             return self
+
         def eq(self, k, v):
             self._filters[k] = v
             return self
+
         def execute(self):
             results = list(self._data.values())
             for k, v in self._filters.items():
@@ -199,12 +342,14 @@ class _DemoDatabase:
     @property
     def client(self):
         parent = self
+
         class _client:
             @staticmethod
             def table(name):
                 if name == "invoices":
                     return _DemoDatabase._table_proxy(parent._get_invoices())
                 return _DemoDatabase._table_proxy({})
+
         return _client()
 
     def _get_invoices(self):
@@ -265,7 +410,7 @@ def _phase_badge(phase: str) -> str:
     cfg = PHASE_COLORS.get(phase, {"bg": "#F3F4F6", "text": "#4B5563", "label": phase})
     return (
         f'<span class="badge" style="background:{cfg["bg"]};color:{cfg["text"]}">'
-        f'{cfg["label"]}</span>'
+        f"{cfg['label']}</span>"
     )
 
 
@@ -274,7 +419,7 @@ def _status_badge(status: str) -> str:
     return (
         f'<span class="badge status-badge" style="background:{cfg["bg"]};color:{cfg["text"]}">'
         f'<span class="status-dot" style="background:{cfg["dot"]}"></span>'
-        f'{status.replace("_", " ").title()}</span>'
+        f"{status.replace('_', ' ').title()}</span>"
     )
 
 
@@ -292,6 +437,7 @@ def _fmt_currency(amount: str, currency: str = "GBP") -> str:
 # ---------------------------------------------------------------------------
 # Pages
 # ---------------------------------------------------------------------------
+
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard_home(request: Request):
@@ -324,35 +470,37 @@ async def dashboard_home(request: Request):
             days = (date.today() - due).days
             amount_fmt = _fmt_currency(inv["amount"], inv.get("currency", "GBP"))
 
-            rows += f"""<tr class="table-row" onclick="window.location='/invoices/{inv['id']}'">
+            rows += f"""<tr class="table-row" onclick="window.location='/invoices/{inv["id"]}'">
                 <td class="cell-invoice">
-                    <span class="invoice-number">{inv['invoice_number']}</span>
+                    <span class="invoice-number">{inv["invoice_number"]}</span>
                 </td>
                 <td>
-                    <div class="debtor-name">{inv['debtor_company']}</div>
-                    <div class="debtor-sme">{sme['company_name']}</div>
+                    <div class="debtor-name">{inv["debtor_company"]}</div>
+                    <div class="debtor-sme">{sme["company_name"]}</div>
                 </td>
                 <td class="cell-amount">{amount_fmt}</td>
                 <td>
-                    <span class="days-overdue {'days-critical' if days > 90 else 'days-warning' if days > 75 else ''}">{days} days</span>
+                    <span class="days-overdue {"days-critical" if days > 90 else "days-warning" if days > 75 else ""}">{days} days</span>
                 </td>
-                <td>{_phase_badge(inv['current_phase'])}</td>
-                <td>{_status_badge(inv['status'])}</td>
+                <td>{_phase_badge(inv["current_phase"])}</td>
+                <td>{_status_badge(inv["status"])}</td>
             </tr>"""
 
     # Format the outstanding total
     outstanding_fmt = f"\u00a3{total_outstanding:,.0f}"
     recovery_rate = f"{(paid_count / total_invoices * 100):.0f}%" if total_invoices > 0 else "—"
 
-    return HTMLResponse(_dashboard_html(
-        rows=rows,
-        total=total_invoices,
-        active=active_count,
-        paused=paused_count,
-        outstanding=outstanding_fmt,
-        recovery_rate=recovery_rate,
-        sme_options=_sme_options(smes),
-    ))
+    return HTMLResponse(
+        _dashboard_html(
+            rows=rows,
+            total=total_invoices,
+            active=active_count,
+            paused=paused_count,
+            outstanding=outstanding_fmt,
+            recovery_rate=recovery_rate,
+            sme_options=_sme_options(smes),
+        )
+    )
 
 
 @app.get("/invoices/{invoice_id}", response_class=HTMLResponse)
@@ -361,11 +509,17 @@ async def invoice_detail(invoice_id: str):
     try:
         uid = UUID(invoice_id)
     except ValueError:
-        return HTMLResponse(_base_html("Not Found", '<div class="container"><h1>Invalid invoice ID</h1></div>'), status_code=404)
+        return HTMLResponse(
+            _base_html("Not Found", '<div class="container"><h1>Invalid invoice ID</h1></div>'),
+            status_code=404,
+        )
     db = _db()
     invoice = db.get_invoice(uid)
     if not invoice:
-        return HTMLResponse(_base_html("Not Found", '<div class="container"><h1>Invoice not found</h1></div>'), status_code=404)
+        return HTMLResponse(
+            _base_html("Not Found", '<div class="container"><h1>Invoice not found</h1></div>'),
+            status_code=404,
+        )
 
     contacts = db.list_contacts(UUID(invoice_id))
     interactions = db.list_interactions(UUID(invoice_id))
@@ -386,22 +540,24 @@ async def invoice_detail(invoice_id: str):
         if ix.get("classification"):
             cls_name = ix["classification"].replace("_", " ").upper()
             cls_color = "#EF4444" if ix["classification"] in ("dispute", "hostile") else "#6935D3"
-            classification_tag = f'<span class="timeline-classification" style="color:{cls_color}">{cls_name}</span>'
+            classification_tag = (
+                f'<span class="timeline-classification" style="color:{cls_color}">{cls_name}</span>'
+            )
 
         sent_at = ix["sent_at"][:16].replace("T", " ")
         border_color = "#6935D3" if is_outbound else "#50FFEB"
 
-        timeline += f"""<div class="timeline-item {'timeline-outbound' if is_outbound else 'timeline-inbound'}">
+        timeline += f"""<div class="timeline-item {"timeline-outbound" if is_outbound else "timeline-inbound"}">
             <div class="timeline-marker" style="background:{border_color}"></div>
             <div class="timeline-content">
                 <div class="timeline-header">
                     <span class="timeline-direction">{direction_label}</span>
                     <span class="timeline-channel">{channel}</span>
-                    <span class="timeline-type">{ix['message_type'].replace('_', ' ').title()}</span>
+                    <span class="timeline-type">{ix["message_type"].replace("_", " ").title()}</span>
                     {classification_tag}
                     <span class="timeline-time">{sent_at}</span>
                 </div>
-                <div class="timeline-body">{_escape(ix['content'][:1500])}</div>
+                <div class="timeline-body">{_escape(ix["content"][:1500])}</div>
             </div>
         </div>"""
 
@@ -422,10 +578,10 @@ async def invoice_detail(invoice_id: str):
         role = f'<span class="contact-role">{c["role"]}</span>' if c.get("role") else ""
         contacts_html += f"""<div class="contact-card">
             <div class="contact-info">
-                <div class="contact-name">{c['name']} {primary_tag}</div>
+                <div class="contact-name">{c["name"]} {primary_tag}</div>
                 {role}
-                <div class="contact-email">{c['email']}</div>
-                {'<div class="contact-phone">' + c["phone"] + '</div>' if c.get("phone") else ''}
+                <div class="contact-email">{c["email"]}</div>
+                {'<div class="contact-phone">' + c["phone"] + "</div>" if c.get("phone") else ""}
             </div>
         </div>"""
 
@@ -446,26 +602,29 @@ async def invoice_detail(invoice_id: str):
             </button>
         </form>"""
 
-    return HTMLResponse(_detail_html(
-        invoice_id=invoice_id,
-        invoice_number=invoice["invoice_number"],
-        debtor_company=invoice["debtor_company"],
-        sme_name=sme["company_name"] if sme else "Unknown",
-        amount=amount_fmt,
-        days_overdue=str(days_overdue),
-        due_date=invoice["due_date"],
-        phase_badge=_phase_badge(invoice["current_phase"]),
-        status_badge=_status_badge(invoice["status"]),
-        contacts=contacts_html,
-        timeline=timeline,
-        actions=actions,
-        interaction_count=len(interactions),
-    ))
+    return HTMLResponse(
+        _detail_html(
+            invoice_id=invoice_id,
+            invoice_number=invoice["invoice_number"],
+            debtor_company=invoice["debtor_company"],
+            sme_name=sme["company_name"] if sme else "Unknown",
+            amount=amount_fmt,
+            days_overdue=str(days_overdue),
+            due_date=invoice["due_date"],
+            phase_badge=_phase_badge(invoice["current_phase"]),
+            status_badge=_status_badge(invoice["status"]),
+            contacts=contacts_html,
+            timeline=timeline,
+            actions=actions,
+            interaction_count=len(interactions),
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
 # Actions
 # ---------------------------------------------------------------------------
+
 
 @app.post("/invoices/{invoice_id}/pause")
 async def pause_invoice(invoice_id: str):
@@ -482,10 +641,13 @@ async def resume_invoice(invoice_id: str):
         phase = invoice["current_phase"]
         if phase in ("human_review", "disputed"):
             phase = InvoicePhase.PHASE_1.value
-        db.update_invoice(UUID(invoice_id), {
-            "status": InvoiceStatus.ACTIVE.value,
-            "current_phase": phase,
-        })
+        db.update_invoice(
+            UUID(invoice_id),
+            {
+                "status": InvoiceStatus.ACTIVE.value,
+                "current_phase": phase,
+            },
+        )
     return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
 
 
@@ -494,15 +656,17 @@ async def upload_csv(sme_id: str = Form(...), file: UploadFile = File(...)):
     if DEMO_MODE:
         return RedirectResponse("/", status_code=303)
     from src.sentry.csv_importer import import_csv
+
     db = _db()
     content = await file.read()
-    result = import_csv(content, UUID(sme_id), db)
+    import_csv(content, UUID(sme_id), db)
     return RedirectResponse("/", status_code=303)
 
 
 # ---------------------------------------------------------------------------
 # API endpoints
 # ---------------------------------------------------------------------------
+
 
 @app.get("/api/invoices")
 async def api_list_invoices(sme_id: str | None = None):
@@ -533,6 +697,7 @@ async def api_list_smes():
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _escape(text: str) -> str:
     """Basic HTML escaping."""
     return (
@@ -555,6 +720,7 @@ def _sme_options(smes: list[dict]) -> str:
 # HTML templates
 # ---------------------------------------------------------------------------
 
+
 def _base_html(title: str, content: str) -> str:
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -571,24 +737,24 @@ def _base_html(title: str, content: str) -> str:
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
         :root {{
-            --navy: {COLORS['navy']};
-            --navy-light: {COLORS['navy_light']};
-            --navy-dark: {COLORS['navy_dark']};
-            --cyan: {COLORS['cyan']};
-            --cyan-muted: {COLORS['cyan_muted']};
-            --cyan-pale: {COLORS['cyan_pale']};
-            --purple: {COLORS['purple']};
-            --purple-light: {COLORS['purple_light']};
-            --sand: {COLORS['sand']};
-            --sand-dark: {COLORS['sand_dark']};
-            --white: {COLORS['white']};
-            --text-primary: {COLORS['text_primary']};
-            --text-secondary: {COLORS['text_secondary']};
-            --text-muted: {COLORS['text_muted']};
-            --border: {COLORS['border']};
-            --success: {COLORS['success']};
-            --warning: {COLORS['warning']};
-            --danger: {COLORS['danger']};
+            --navy: {COLORS["navy"]};
+            --navy-light: {COLORS["navy_light"]};
+            --navy-dark: {COLORS["navy_dark"]};
+            --cyan: {COLORS["cyan"]};
+            --cyan-muted: {COLORS["cyan_muted"]};
+            --cyan-pale: {COLORS["cyan_pale"]};
+            --purple: {COLORS["purple"]};
+            --purple-light: {COLORS["purple_light"]};
+            --sand: {COLORS["sand"]};
+            --sand-dark: {COLORS["sand_dark"]};
+            --white: {COLORS["white"]};
+            --text-primary: {COLORS["text_primary"]};
+            --text-secondary: {COLORS["text_secondary"]};
+            --text-muted: {COLORS["text_muted"]};
+            --border: {COLORS["border"]};
+            --success: {COLORS["success"]};
+            --warning: {COLORS["warning"]};
+            --danger: {COLORS["danger"]};
             --radius-sm: 6px;
             --radius-md: 12px;
             --radius-lg: 16px;
@@ -1174,7 +1340,9 @@ def _dashboard_html(
     recovery_rate: str,
     sme_options: str,
 ) -> str:
-    return _base_html("Dashboard", f"""
+    return _base_html(
+        "Dashboard",
+        f"""
     <div class="container">
         <div class="page-header">
             <h1>Collections Dashboard</h1>
@@ -1235,7 +1403,7 @@ def _dashboard_html(
                     </div>
                     <div class="upload-area" id="dropZone">
                         <div class="upload-icon">
-                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="{COLORS['text_muted']}" stroke-width="1.5">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="{COLORS["text_muted"]}" stroke-width="1.5">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                                 <polyline points="17 8 12 3 7 8"/>
                                 <line x1="12" y1="3" x2="12" y2="15"/>
@@ -1255,7 +1423,8 @@ def _dashboard_html(
             </div>
         </div>
     </div>
-    """)
+    """,
+    )
 
 
 def _detail_html(
@@ -1276,7 +1445,9 @@ def _detail_html(
     days_int = int(days_overdue) if days_overdue.isdigit() else 0
     days_class = "meta-danger" if days_int > 90 else ""
 
-    return _base_html(f"Invoice #{invoice_number}", f"""
+    return _base_html(
+        f"Invoice #{invoice_number}",
+        f"""
     <div class="container">
         <a href="/" class="back-link">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1362,4 +1533,5 @@ def _detail_html(
             </div>
         </div>
     </div>
-    """)
+    """,
+    )

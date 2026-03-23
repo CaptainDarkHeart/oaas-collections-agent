@@ -68,7 +68,7 @@ def _parse_classification(raw: str) -> tuple[Classification, str]:
     # Try matching just the first word/line
     first_token = raw.split()[0].strip().upper() if raw else ""
     if first_token in VALID_CLASSIFICATIONS:
-        justification = raw[len(first_token):].strip().lstrip("-:—").strip()
+        justification = raw[len(first_token) :].strip().lstrip("-:—").strip()
         return VALID_CLASSIFICATIONS[first_token], justification
 
     # Safe fallback

@@ -22,18 +22,16 @@ from src.config import settings
 from src.db.models import (
     Channel,
     Classification,
-    Contact,
     Database,
     Direction,
     Interaction,
     InvoicePhase,
-    InvoiceStatus,
     MessageType,
 )
 from src.executor.cadence import can_contact_today, is_within_daily_limit, schedule_next_send
 from src.executor.email_sender import InstantlyClient, send_collection_email
 from src.notifications import email_alerts, slack_webhook
-from src.strategist.message_generator import GeneratedMessage, MessageContext, generate_message
+from src.strategist.message_generator import MessageContext, generate_message
 from src.strategist.response_classifier import classify_response
 from src.strategist.state_machine import (
     handle_classification,
@@ -44,7 +42,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
-def run_daily_cycle(db: Database | None = None, email_client: InstantlyClient | None = None) -> None:
+def run_daily_cycle(
+    db: Database | None = None,
+    email_client: InstantlyClient | None = None,
+) -> None:
     """Run the full daily processing cycle for all active invoices."""
     db = db or Database()
     email_client = email_client or InstantlyClient()
@@ -93,9 +94,7 @@ def _process_invoice(
 
     # Check last outbound interaction
     last_outbound = db.get_latest_outbound(invoice_id)
-    last_outbound_at = (
-        datetime.fromisoformat(last_outbound["sent_at"]) if last_outbound else None
-    )
+    last_outbound_at = datetime.fromisoformat(last_outbound["sent_at"]) if last_outbound else None
 
     # Enforce minimum contact gap
     if not can_contact_today(last_outbound_at):
@@ -104,9 +103,9 @@ def _process_invoice(
     # Count interactions in current phase
     interactions = db.list_interactions(invoice_id)
     interactions_in_phase = sum(
-        1 for i in interactions
-        if i["direction"] == Direction.OUTBOUND.value
-        and str(i["phase"]) == current_phase.value
+        1
+        for i in interactions
+        if i["direction"] == Direction.OUTBOUND.value and str(i["phase"]) == current_phase.value
     )
 
     # Check if we should escalate to the next phase
@@ -145,8 +144,7 @@ def _process_invoice(
 
     # Build context and generate message
     previous_messages = [
-        i["content"] for i in interactions
-        if i["direction"] == Direction.OUTBOUND.value
+        i["content"] for i in interactions if i["direction"] == Direction.OUTBOUND.value
     ][-3:]
 
     ctx = MessageContext(
@@ -174,9 +172,11 @@ def _process_invoice(
         return False
 
     # Send the email
-    previous_message_id = last_outbound.get("metadata", {}).get("message_id") if last_outbound else None
+    previous_message_id = (
+        last_outbound.get("metadata", {}).get("message_id") if last_outbound else None
+    )
 
-    result = send_collection_email(
+    send_result = send_collection_email(
         client=email_client,
         to_email=contact["email"],
         to_name=contact["name"],
@@ -186,11 +186,11 @@ def _process_invoice(
         previous_message_id=previous_message_id if msg.is_reply_to_sent else None,
     )
 
-    if not result.success:
+    if not send_result.success:
         logger.error(
             "Failed to send email for invoice %s: %s",
             invoice["invoice_number"],
-            result.error,
+            send_result.error,
         )
         return False
 
@@ -206,7 +206,7 @@ def _process_invoice(
         content=f"Subject: {msg.subject}\n\n{msg.body}",
         sent_at=datetime.now(tz=UTC).replace(tzinfo=None),
         delivered=True,
-        metadata={"message_id": result.message_id, "is_reply_to_sent": msg.is_reply_to_sent},
+        metadata={"message_id": send_result.message_id, "is_reply_to_sent": msg.is_reply_to_sent},
     )
     db.create_interaction(interaction)
 
@@ -279,26 +279,41 @@ def process_inbound_reply(
                 invoice["invoice_number"], invoice["debtor_company"], reply_text[:200]
             )
             email_alerts.alert_dispute(
-                email_client, sme["contact_email"], sme["company_name"],
-                invoice["invoice_number"], invoice["debtor_company"], reply_text,
+                email_client,
+                sme["contact_email"],
+                sme["company_name"],
+                invoice["invoice_number"],
+                invoice["debtor_company"],
+                reply_text,
             )
         elif classification == Classification.HOSTILE:
             slack_webhook.notify_hostile(
                 invoice["invoice_number"], invoice["debtor_company"], reply_text[:200]
             )
             email_alerts.alert_hostile(
-                email_client, sme["contact_email"], sme["company_name"],
-                invoice["invoice_number"], invoice["debtor_company"], reply_text,
+                email_client,
+                sme["contact_email"],
+                sme["company_name"],
+                invoice["invoice_number"],
+                invoice["debtor_company"],
+                reply_text,
             )
 
     elif result.action == "redirect":
         # TODO: Parse new contact details from reply and add to sequence
-        logger.info("Invoice %s: redirect detected — needs new contact extraction", invoice["invoice_number"])
+        logger.info(
+            "Invoice %s: redirect detected — needs new contact extraction",
+            invoice["invoice_number"],
+        )
 
     elif result.action == "monitor" and classification == Classification.PROMISE_TO_PAY:
         email_alerts.alert_promise_to_pay(
-            email_client, sme["contact_email"], sme["company_name"],
-            invoice["invoice_number"], invoice["debtor_company"], justification,
+            email_client,
+            sme["contact_email"],
+            sme["company_name"],
+            invoice["invoice_number"],
+            invoice["debtor_company"],
+            justification,
         )
 
 
@@ -310,16 +325,22 @@ def _send_notifications(
     reason: str,
 ) -> None:
     """Send Slack + email notifications for human-review events."""
-    slack_webhook.notify_human_review(
-        invoice["invoice_number"], invoice["debtor_company"], reason
-    )
+    slack_webhook.notify_human_review(invoice["invoice_number"], invoice["debtor_company"], reason)
     email_alerts.alert_human_review(
-        email_client, sme["contact_email"], sme["company_name"],
-        invoice["invoice_number"], invoice["debtor_company"], reason,
+        email_client,
+        sme["contact_email"],
+        sme["company_name"],
+        invoice["invoice_number"],
+        invoice["debtor_company"],
+        reason,
     )
 
 
-def _get_phase_start_date(interactions: list[dict], current_phase: InvoicePhase, invoice: dict) -> date:
+def _get_phase_start_date(
+    interactions: list[dict],
+    current_phase: InvoicePhase,
+    invoice: dict,
+) -> date:
     """Determine when the current phase started based on interaction history."""
     for interaction in interactions:
         if (

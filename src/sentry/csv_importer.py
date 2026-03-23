@@ -40,7 +40,14 @@ class ImportResult:
         return self.invoices_created > 0
 
 
-REQUIRED_COLUMNS = {"debtor_company", "contact_name", "contact_email", "invoice_number", "amount", "due_date"}
+REQUIRED_COLUMNS = {
+    "debtor_company",
+    "contact_name",
+    "contact_email",
+    "invoice_number",
+    "amount",
+    "due_date",
+}
 OPTIONAL_COLUMNS = {"contact_phone", "currency", "contact_role"}
 
 
@@ -61,17 +68,21 @@ def parse_csv(file_content: str | bytes) -> tuple[list[dict], list[ImportError]]
     normalised = {h.strip().lower().replace(" ", "_"): h for h in reader.fieldnames}
     missing = REQUIRED_COLUMNS - set(normalised.keys())
     if missing:
-        return [], [ImportError(
-            row=0, column="", message=f"Missing required columns: {', '.join(sorted(missing))}"
-        )]
+        return [], [
+            ImportError(
+                row=0, column="", message=f"Missing required columns: {', '.join(sorted(missing))}"
+            )
+        ]
 
     rows: list[dict] = []
     errors: list[ImportError] = []
 
     for i, raw_row in enumerate(reader, start=2):  # row 2 = first data row
         # Remap to normalised keys
-        row = {normalised_key: (raw_row.get(original_header) or "").strip()
-               for normalised_key, original_header in normalised.items()}
+        row = {
+            normalised_key: (raw_row.get(original_header) or "").strip()
+            for normalised_key, original_header in normalised.items()
+        }
 
         row_errors = _validate_row(i, row)
         if row_errors:
@@ -98,26 +109,52 @@ def _validate_row(row_num: int, row: dict) -> list[ImportError]:
     try:
         amount = Decimal(row["amount"].replace(",", ""))
         if amount <= 0:
-            errors.append(ImportError(row=row_num, column="amount", message="Amount must be positive"))
+            errors.append(
+                ImportError(
+                    row=row_num,
+                    column="amount",
+                    message="Amount must be positive",
+                )
+            )
     except InvalidOperation:
-        errors.append(ImportError(row=row_num, column="amount", message=f"Invalid amount: {row['amount']}"))
+        errors.append(
+            ImportError(
+                row=row_num,
+                column="amount",
+                message=f"Invalid amount: {row['amount']}",
+            )
+        )
 
     # Validate due_date
     try:
         parsed_date = date.fromisoformat(row["due_date"])
         if parsed_date > date.today():
-            errors.append(ImportError(
-                row=row_num, column="due_date", message="Due date is in the future — invoice is not overdue"
-            ))
+            errors.append(
+                ImportError(
+                    row=row_num,
+                    column="due_date",
+                    message="Due date is in the future — invoice is not overdue",
+                )
+            )
     except ValueError:
-        errors.append(ImportError(
-            row=row_num, column="due_date", message=f"Invalid date format: {row['due_date']} (expected YYYY-MM-DD)"
-        ))
+        errors.append(
+            ImportError(
+                row=row_num,
+                column="due_date",
+                message=f"Invalid date format: {row['due_date']} (expected YYYY-MM-DD)",
+            )
+        )
 
     # Validate email
     email = row["contact_email"]
     if "@" not in email or "." not in email.split("@")[-1]:
-        errors.append(ImportError(row=row_num, column="contact_email", message=f"Invalid email: {email}"))
+        errors.append(
+            ImportError(
+                row=row_num,
+                column="contact_email",
+                message=f"Invalid email: {email}",
+            )
+        )
 
     return errors
 

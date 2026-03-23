@@ -1,6 +1,6 @@
 """Tests for the variable cadence engine."""
 
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from src.db.models import InvoicePhase
 from src.executor.cadence import (

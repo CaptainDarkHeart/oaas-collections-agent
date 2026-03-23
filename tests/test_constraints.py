@@ -1,10 +1,10 @@
 """Tests for the hard-coded guardrails in constraints.py."""
 
 from src.strategist.constraints import (
+    PAUSE_CLASSIFICATIONS,
     PHASE_1_BANNED_WORDS,
     PHASE_DISCOUNT_LIMITS,
     PHASE_MAX_WORDS,
-    PAUSE_CLASSIFICATIONS,
     DiscountOffer,
 )
 
@@ -15,7 +15,12 @@ class TestDiscountOffer:
         assert not offer.is_valid()
 
     def test_phase_1_zero_discount_ok(self):
-        offer = DiscountOffer(percentage=0.0, payment_window_hours=48, phase=1, sme_authorised=False)
+        offer = DiscountOffer(
+            percentage=0.0,
+            payment_window_hours=48,
+            phase=1,
+            sme_authorised=False,
+        )
         assert offer.is_valid()
 
     def test_phase_2_within_limit(self):
@@ -31,7 +36,12 @@ class TestDiscountOffer:
         assert offer.is_valid()
 
     def test_phase_3_not_authorised(self):
-        offer = DiscountOffer(percentage=2.0, payment_window_hours=24, phase=3, sme_authorised=False)
+        offer = DiscountOffer(
+            percentage=2.0,
+            payment_window_hours=24,
+            phase=3,
+            sme_authorised=False,
+        )
         assert not offer.is_valid()
 
     def test_phase_4_no_discounts(self):

@@ -17,7 +17,7 @@ Transitions triggered by:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID
 
 from src.db.models import (
@@ -26,7 +26,6 @@ from src.db.models import (
     InvoicePhase,
     InvoiceStatus,
 )
-
 
 # Phase cadence: maps phase to (days into sequence, phase duration in days)
 PHASE_SCHEDULE = {
@@ -38,10 +37,10 @@ PHASE_SCHEDULE = {
 
 # Follow-up schedule within each phase (days after phase start)
 PHASE_FOLLOWUPS = {
-    InvoicePhase.PHASE_1: [0, 2, 4],      # Day 1, 3, 5
-    InvoicePhase.PHASE_2: [0, 3],          # Day 7, 10
-    InvoicePhase.PHASE_3: [0, 3],          # Day 14, 17
-    InvoicePhase.PHASE_4: [0, 2],          # Day 21, 23
+    InvoicePhase.PHASE_1: [0, 2, 4],  # Day 1, 3, 5
+    InvoicePhase.PHASE_2: [0, 3],  # Day 7, 10
+    InvoicePhase.PHASE_3: [0, 3],  # Day 14, 17
+    InvoicePhase.PHASE_4: [0, 2],  # Day 21, 23
 }
 
 
@@ -67,27 +66,33 @@ def handle_classification(
     Implements the action matrix from the spec.
     """
     if classification == Classification.PROMISE_TO_PAY:
-        db.update_invoice(invoice_id, {
-            "status": InvoiceStatus.ACTIVE.value,
-        })
+        db.update_invoice(
+            invoice_id,
+            {
+                "status": InvoiceStatus.ACTIVE.value,
+            },
+        )
         return TransitionResult(
             action="monitor",
             message="Send thank-you + calendar reminder for promised date. "
-                    "Re-engage with Phase 2 tone if payment not received by date + 3 days.",
+            "Re-engage with Phase 2 tone if payment not received by date + 3 days.",
         )
 
     if classification == Classification.PAYMENT_PENDING:
         return TransitionResult(
             action="send_message",
             message="Request check/transfer reference number for social accountability. "
-                    "Follow up in 3 business days.",
+            "Follow up in 3 business days.",
         )
 
     if classification == Classification.DISPUTE:
-        db.update_invoice(invoice_id, {
-            "current_phase": InvoicePhase.DISPUTED.value,
-            "status": InvoiceStatus.DISPUTED.value,
-        })
+        db.update_invoice(
+            invoice_id,
+            {
+                "current_phase": InvoicePhase.DISPUTED.value,
+                "status": InvoiceStatus.DISPUTED.value,
+            },
+        )
         return TransitionResult(
             action="pause",
             new_phase=InvoicePhase.DISPUTED,
@@ -110,10 +115,13 @@ def handle_classification(
         )
 
     if classification == Classification.HOSTILE:
-        db.update_invoice(invoice_id, {
-            "current_phase": InvoicePhase.HUMAN_REVIEW.value,
-            "status": InvoiceStatus.PAUSED.value,
-        })
+        db.update_invoice(
+            invoice_id,
+            {
+                "current_phase": InvoicePhase.HUMAN_REVIEW.value,
+                "status": InvoiceStatus.PAUSED.value,
+            },
+        )
         return TransitionResult(
             action="pause",
             new_phase=InvoicePhase.HUMAN_REVIEW,
@@ -147,10 +155,13 @@ def _escalate_phase(
 
     if idx >= len(phase_order) - 1:
         # End of Phase 4 — flag for human review
-        db.update_invoice(invoice_id, {
-            "current_phase": InvoicePhase.HUMAN_REVIEW.value,
-            "status": InvoiceStatus.PAUSED.value,
-        })
+        db.update_invoice(
+            invoice_id,
+            {
+                "current_phase": InvoicePhase.HUMAN_REVIEW.value,
+                "status": InvoiceStatus.PAUSED.value,
+            },
+        )
         return TransitionResult(
             action="human_review",
             new_phase=InvoicePhase.HUMAN_REVIEW,

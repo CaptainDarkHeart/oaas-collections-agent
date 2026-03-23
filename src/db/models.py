@@ -16,10 +16,10 @@ from pydantic import BaseModel, Field
 
 from src.config import settings
 
-
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
+
 
 class AccountingPlatform(str, enum.Enum):
     XERO = "xero"
@@ -105,6 +105,7 @@ class FeeStatus(str, enum.Enum):
 # Pydantic models
 # ---------------------------------------------------------------------------
 
+
 class SME(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     company_name: str
@@ -115,7 +116,9 @@ class SME(BaseModel):
     stripe_customer_id: str | None = None
     discount_authorised: bool = False
     max_discount_percent: Decimal = Decimal("0")
-    onboarded_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC).replace(tzinfo=None))
+    onboarded_at: datetime = Field(
+        default_factory=lambda: datetime.now(tz=UTC).replace(tzinfo=None)
+    )
     status: SMEStatus = SMEStatus.ACTIVE
 
 
@@ -185,6 +188,7 @@ class Fee(BaseModel):
 # Supabase client wrapper
 # ---------------------------------------------------------------------------
 
+
 class Database:
     """Thin wrapper around the Supabase client for CRUD operations."""
 
@@ -196,20 +200,10 @@ class Database:
     # -- SME --
 
     def create_sme(self, sme: SME) -> dict:
-        return (
-            self.client.table("smes")
-            .insert(self._serialize(sme))
-            .execute()
-            .data[0]
-        )
+        return self.client.table("smes").insert(self._serialize(sme)).execute().data[0]
 
     def get_sme(self, sme_id: UUID) -> dict | None:
-        resp = (
-            self.client.table("smes")
-            .select("*")
-            .eq("id", str(sme_id))
-            .execute()
-        )
+        resp = self.client.table("smes").select("*").eq("id", str(sme_id)).execute()
         return resp.data[0] if resp.data else None
 
     def list_active_smes(self) -> list[dict]:
@@ -224,28 +218,14 @@ class Database:
     # -- Invoice --
 
     def create_invoice(self, invoice: Invoice) -> dict:
-        return (
-            self.client.table("invoices")
-            .insert(self._serialize(invoice))
-            .execute()
-            .data[0]
-        )
+        return self.client.table("invoices").insert(self._serialize(invoice)).execute().data[0]
 
     def get_invoice(self, invoice_id: UUID) -> dict | None:
-        resp = (
-            self.client.table("invoices")
-            .select("*")
-            .eq("id", str(invoice_id))
-            .execute()
-        )
+        resp = self.client.table("invoices").select("*").eq("id", str(invoice_id)).execute()
         return resp.data[0] if resp.data else None
 
     def list_active_invoices(self, sme_id: UUID | None = None) -> list[dict]:
-        query = (
-            self.client.table("invoices")
-            .select("*")
-            .eq("status", InvoiceStatus.ACTIVE.value)
-        )
+        query = self.client.table("invoices").select("*").eq("status", InvoiceStatus.ACTIVE.value)
         if sme_id:
             query = query.eq("sme_id", str(sme_id))
         return query.execute().data
@@ -263,12 +243,7 @@ class Database:
     # -- Contact --
 
     def create_contact(self, contact: Contact) -> dict:
-        return (
-            self.client.table("contacts")
-            .insert(self._serialize(contact))
-            .execute()
-            .data[0]
-        )
+        return self.client.table("contacts").insert(self._serialize(contact)).execute().data[0]
 
     def get_primary_contact(self, invoice_id: UUID) -> dict | None:
         resp = (
@@ -293,10 +268,7 @@ class Database:
 
     def create_interaction(self, interaction: Interaction) -> dict:
         return (
-            self.client.table("interactions")
-            .insert(self._serialize(interaction))
-            .execute()
-            .data[0]
+            self.client.table("interactions").insert(self._serialize(interaction)).execute().data[0]
         )
 
     def list_interactions(self, invoice_id: UUID) -> list[dict]:
@@ -324,12 +296,7 @@ class Database:
     # -- Fee --
 
     def create_fee(self, fee: Fee) -> dict:
-        return (
-            self.client.table("fees")
-            .insert(self._serialize(fee))
-            .execute()
-            .data[0]
-        )
+        return self.client.table("fees").insert(self._serialize(fee)).execute().data[0]
 
     # -- Helpers --
 

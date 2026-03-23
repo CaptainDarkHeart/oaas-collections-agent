@@ -17,7 +17,6 @@ import requests
 
 from src.config import settings
 
-
 INSTANTLY_BASE_URL = "https://api.instantly.ai/api/v2"
 
 
@@ -36,10 +35,12 @@ class InstantlyClient:
     def __init__(self) -> None:
         self.api_key = settings.instantly_api_key
         self.session = requests.Session()
-        self.session.headers.update({
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        })
+        self.session.headers.update(
+            {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+        )
 
     def send_email(
         self,

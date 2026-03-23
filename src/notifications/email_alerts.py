@@ -46,7 +46,7 @@ def alert_dispute(
             f"Hi {owner_name},\n\n"
             f"Your debtor {debtor_company} has disputed Invoice #{invoice_number}. "
             f"Our agent has paused all automated outreach on this invoice.\n\n"
-            f"Their reply:\n\"{reply_excerpt[:500]}\"\n\n"
+            f'Their reply:\n"{reply_excerpt[:500]}"\n\n'
             f"Please review and let us know how to proceed. You can clear the "
             f"dispute flag in your dashboard to re-enable the agent, or handle "
             f"this one directly.\n\n"
@@ -74,7 +74,7 @@ def alert_hostile(
             f"We received a hostile response from {debtor_company} regarding "
             f"Invoice #{invoice_number}. Our agent has stopped all contact "
             f"and will not send any further messages.\n\n"
-            f"Their reply:\n\"{reply_excerpt[:500]}\"\n\n"
+            f'Their reply:\n"{reply_excerpt[:500]}"\n\n'
             f"This requires your personal review. Please check the dashboard "
             f"for full details.\n\n"
             f"— OaaS Collections Agent"

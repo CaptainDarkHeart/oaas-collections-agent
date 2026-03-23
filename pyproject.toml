@@ -22,6 +22,8 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=5.0.0",
     "ruff>=0.4.0",
+    "mypy>=1.10.0",
+    "types-requests>=2.31.0",
 ]
 
 [build-system]
@@ -34,6 +36,20 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/dashboard/app.py" = ["E501", "N801"]
+"tests/test_csv_importer.py" = ["E501"]
+
+[tool.mypy]
+ignore_missing_imports = true
+no_strict_optional = true
+warn_unused_ignores = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "src.db.models"
+disable_error_code = ["return-value"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

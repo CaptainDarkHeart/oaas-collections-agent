@@ -17,7 +17,7 @@ import anthropic
 
 from src.config import settings
 from src.db.models import InvoicePhase
-from src.strategist.constraints import PHASE_MAX_WORDS, PHASE_1_BANNED_WORDS
+from src.strategist.constraints import PHASE_1_BANNED_WORDS, PHASE_MAX_WORDS
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
@@ -141,7 +141,7 @@ def _parse_email(raw: str, ctx: MessageContext) -> tuple[str, str]:
 
     for i, line in enumerate(lines):
         if line.lower().startswith("subject:"):
-            subject = line[len("subject:"):].strip()
+            subject = line[len("subject:") :].strip()
             body_start = i + 1
             break
 

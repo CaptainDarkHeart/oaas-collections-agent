@@ -29,9 +29,7 @@ class TestHandleClassification:
     def test_dispute_pauses_immediately(self):
         db = _mock_db()
         invoice_id = uuid4()
-        result = handle_classification(
-            Classification.DISPUTE, InvoicePhase.PHASE_2, invoice_id, db
-        )
+        result = handle_classification(Classification.DISPUTE, InvoicePhase.PHASE_2, invoice_id, db)
         assert result.action == "pause"
         assert result.new_phase == InvoicePhase.DISPUTED
         assert result.new_status == InvoiceStatus.DISPUTED
@@ -40,9 +38,7 @@ class TestHandleClassification:
     def test_hostile_pauses_immediately(self):
         db = _mock_db()
         invoice_id = uuid4()
-        result = handle_classification(
-            Classification.HOSTILE, InvoicePhase.PHASE_3, invoice_id, db
-        )
+        result = handle_classification(Classification.HOSTILE, InvoicePhase.PHASE_3, invoice_id, db)
         assert result.action == "pause"
         assert result.new_phase == InvoicePhase.HUMAN_REVIEW
         assert result.new_status == InvoiceStatus.PAUSED
@@ -50,17 +46,13 @@ class TestHandleClassification:
 
     def test_redirect_starts_phase_1_with_new_contact(self):
         db = _mock_db()
-        result = handle_classification(
-            Classification.REDIRECT, InvoicePhase.PHASE_2, uuid4(), db
-        )
+        result = handle_classification(Classification.REDIRECT, InvoicePhase.PHASE_2, uuid4(), db)
         assert result.action == "redirect"
         assert result.new_phase == InvoicePhase.PHASE_1
 
     def test_stall_accelerates_cadence(self):
         db = _mock_db()
-        result = handle_classification(
-            Classification.STALL, InvoicePhase.PHASE_1, uuid4(), db
-        )
+        result = handle_classification(Classification.STALL, InvoicePhase.PHASE_1, uuid4(), db)
         assert result.action == "send_message"
         assert result.accelerated is True
 
