@@ -819,8 +819,8 @@ def _base_html(title: str, content: str) -> str:
 
         /* Nav */
         .nav {{
-            background: var(--white);
-            border-bottom: 1px solid var(--border);
+            background: var(--navy);
+            border-bottom: none;
             padding: 0 32px;
             display: flex;
             align-items: center;
@@ -838,7 +838,14 @@ def _base_html(title: str, content: str) -> str:
         }}
         .nav-logo {{
             height: 40px;
-            width: auto;
+            width: 40px;
+            background: var(--white);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+            flex-shrink: 0;
         }}
         .nav-logo img {{
             height: 100%;
@@ -851,7 +858,7 @@ def _base_html(title: str, content: str) -> str:
             gap: 8px;
         }}
         .nav-link {{
-            color: var(--text-secondary);
+            color: rgba(255,255,255,0.65);
             text-decoration: none;
             font-size: 14px;
             font-weight: 500;
@@ -860,8 +867,8 @@ def _base_html(title: str, content: str) -> str:
             transition: all 0.15s ease;
         }}
         .nav-link:hover, .nav-link.active {{
-            color: var(--navy);
-            background: var(--sand);
+            color: var(--white);
+            background: rgba(255,255,255,0.1);
         }}
 
         /* Container */
