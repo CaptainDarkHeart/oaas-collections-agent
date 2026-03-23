@@ -129,6 +129,18 @@ def _mock_email_client(success: bool = True) -> MagicMock:
     return client
 
 
+def _mock_payment_links() -> MagicMock:
+    from src.executor.payment_link import PaymentLinkResult
+
+    client = MagicMock()
+    client.create_invoice_payment_link.return_value = PaymentLinkResult(
+        success=True,
+        url="https://pay.stripe.com/test_link",
+        payment_link_id="plink_test",
+    )
+    return client
+
+
 # ---------------------------------------------------------------------------
 # run_daily_cycle
 # ---------------------------------------------------------------------------
@@ -155,7 +167,7 @@ class TestRunDailyCycle:
         mock_gen.return_value = GeneratedMessage(subject="Hi", body="Hello")
         mock_send.return_value = EmailResult(success=True, message_id="m1")
 
-        run_daily_cycle(db=db, email_client=_mock_email_client())
+        run_daily_cycle(db=db, email_client=_mock_email_client(), payment_links=_mock_payment_links())
 
         assert db.list_active_smes.call_count == 1
         assert db.list_active_invoices.call_count == 2
@@ -175,7 +187,7 @@ class TestRunDailyCycle:
         mock_gen.return_value = GeneratedMessage(subject="Hi", body="Hello")
         mock_send.return_value = EmailResult(success=True, message_id="m1")
 
-        run_daily_cycle(db=db, email_client=_mock_email_client())
+        run_daily_cycle(db=db, email_client=_mock_email_client(), payment_links=_mock_payment_links())
 
         # Should have created at most 30 interactions (the limit)
         assert db.create_interaction.call_count <= 30
@@ -185,7 +197,7 @@ class TestRunDailyCycle:
         db = _mock_db()
         db.list_active_smes.return_value = []
 
-        run_daily_cycle(db=db, email_client=_mock_email_client())
+        run_daily_cycle(db=db, email_client=_mock_email_client(), payment_links=_mock_payment_links())
 
         db.list_active_invoices.assert_not_called()
 
@@ -203,7 +215,7 @@ class TestProcessInvoice:
         db = _mock_db()
         invoice = _make_invoice(current_phase=InvoicePhase.HUMAN_REVIEW.value)
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), invoice)
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), invoice)
 
         assert result is False
         db.get_primary_contact.assert_not_called()
@@ -213,7 +225,7 @@ class TestProcessInvoice:
         db = _mock_db()
         invoice = _make_invoice(current_phase=InvoicePhase.RESOLVED.value)
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), invoice)
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), invoice)
 
         assert result is False
 
@@ -222,7 +234,7 @@ class TestProcessInvoice:
         db = _mock_db()
         invoice = _make_invoice(current_phase=InvoicePhase.DISPUTED.value)
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), invoice)
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), invoice)
 
         assert result is False
 
@@ -230,7 +242,7 @@ class TestProcessInvoice:
         """Invoices without a primary contact are skipped."""
         db = _mock_db(get_primary_contact=None)
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), _make_invoice())
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), _make_invoice())
 
         assert result is False
 
@@ -240,7 +252,7 @@ class TestProcessInvoice:
         last_outbound = _make_outbound_interaction(days_ago=0)
         db = _mock_db(get_latest_outbound=last_outbound)
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), _make_invoice())
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), _make_invoice())
 
         assert result is False
 
@@ -249,7 +261,7 @@ class TestProcessInvoice:
         """Skips if all follow-ups for the phase have been sent."""
         db = _mock_db()
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), _make_invoice())
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), _make_invoice())
 
         assert result is False
 
@@ -260,7 +272,7 @@ class TestProcessInvoice:
         mock_schedule.return_value = tomorrow
         db = _mock_db()
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), _make_invoice())
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), _make_invoice())
 
         assert result is False
 
@@ -274,7 +286,7 @@ class TestProcessInvoice:
         mock_send.return_value = EmailResult(success=True, message_id="msg-789")
         db = _mock_db()
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), _make_invoice())
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), _make_invoice())
 
         assert result is True
         db.create_interaction.assert_called_once()
@@ -294,7 +306,7 @@ class TestProcessInvoice:
         mock_send.return_value = EmailResult(success=False, error="Timeout")
         db = _mock_db()
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), _make_invoice())
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), _make_invoice())
 
         assert result is False
         db.create_interaction.assert_not_called()
@@ -307,7 +319,7 @@ class TestProcessInvoice:
         mock_gen.side_effect = RuntimeError("LLM timeout")
         db = _mock_db()
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), _make_invoice())
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), _make_invoice())
 
         assert result is False
         db.create_interaction.assert_not_called()
@@ -328,7 +340,7 @@ class TestProcessInvoice:
         mock_gen.return_value = GeneratedMessage(subject="Follow up", body="Bump")
         mock_send.return_value = EmailResult(success=True, message_id="msg-f1")
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), _make_invoice())
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), _make_invoice())
 
         assert result is True
         interaction = db.create_interaction.call_args[0][0]
@@ -356,7 +368,7 @@ class TestProcessInvoice:
         )
         invoice = _make_invoice(current_phase=InvoicePhase.PHASE_4.value)
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), invoice)
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), invoice)
 
         assert result is False
         mock_notify.assert_called_once()
@@ -392,7 +404,7 @@ class TestProcessInvoice:
         mock_gen.return_value = GeneratedMessage(subject="Escalated", body="Phase 2 msg")
         mock_send.return_value = EmailResult(success=True, message_id="msg-e1")
 
-        result = _process_invoice(db, _mock_email_client(), _make_sme(), _make_invoice())
+        result = _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), _make_invoice())
 
         assert result is True
         # Verify the message context used Phase 2
@@ -419,7 +431,7 @@ class TestProcessInvoice:
         )
         mock_send.return_value = EmailResult(success=True, message_id="msg-r1")
 
-        _process_invoice(db, _mock_email_client(), _make_sme(), _make_invoice())
+        _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), _make_invoice())
 
         # send_collection_email should receive the prior message_id
         call_kwargs = mock_send.call_args[1]
@@ -444,7 +456,7 @@ class TestProcessInvoice:
         )
         mock_send.return_value = EmailResult(success=True, message_id="msg-n1")
 
-        _process_invoice(db, _mock_email_client(), _make_sme(), _make_invoice())
+        _process_invoice(db, _mock_email_client(), _mock_payment_links(), _make_sme(), _make_invoice())
 
         call_kwargs = mock_send.call_args[1]
         assert call_kwargs["previous_message_id"] is None

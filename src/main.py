@@ -30,6 +30,7 @@ from src.db.models import (
 )
 from src.executor.cadence import can_contact_today, is_within_daily_limit, schedule_next_send
 from src.executor.email_sender import InstantlyClient, send_collection_email
+from src.executor.payment_link import StripePaymentLinks
 from src.notifications import email_alerts, slack_webhook
 from src.strategist.message_generator import MessageContext, generate_message
 from src.strategist.response_classifier import classify_response
@@ -45,10 +46,12 @@ logger = logging.getLogger(__name__)
 def run_daily_cycle(
     db: Database | None = None,
     email_client: InstantlyClient | None = None,
+    payment_links: StripePaymentLinks | None = None,
 ) -> None:
     """Run the full daily processing cycle for all active invoices."""
     db = db or Database()
     email_client = email_client or InstantlyClient()
+    payment_links = payment_links or StripePaymentLinks()
     emails_sent_today = 0
 
     logger.info("Starting daily cycle at %s", datetime.now(tz=UTC).replace(tzinfo=None).isoformat())
@@ -63,7 +66,7 @@ def run_daily_cycle(
                 logger.warning("Daily email limit reached (%d). Stopping.", emails_sent_today)
                 return
 
-            sent = _process_invoice(db, email_client, sme, invoice)
+            sent = _process_invoice(db, email_client, payment_links, sme, invoice)
             if sent:
                 emails_sent_today += 1
 
@@ -73,6 +76,7 @@ def run_daily_cycle(
 def _process_invoice(
     db: Database,
     email_client: InstantlyClient,
+    payment_links: StripePaymentLinks,
     sme: dict,
     invoice: dict,
 ) -> bool:
@@ -142,6 +146,22 @@ def _process_invoice(
     if next_send.date() > date.today():
         return False  # Not time yet
 
+    # Generate a payment link for this invoice (if Stripe is configured)
+    payment_link_url = None
+    if settings.stripe_secret_key:
+        from decimal import Decimal as _Decimal
+
+        link_result = payment_links.create_invoice_payment_link(
+            invoice_id=invoice_id,
+            invoice_number=invoice["invoice_number"],
+            debtor_company=invoice["debtor_company"],
+            amount=_Decimal(str(invoice["amount"])),
+            currency=invoice.get("currency", "GBP"),
+            sme_id=UUID(sme["id"]),
+        )
+        if link_result.success:
+            payment_link_url = link_result.url
+
     # Build context and generate message
     previous_messages = [
         i["content"] for i in interactions if i["direction"] == Direction.OUTBOUND.value
@@ -163,6 +183,7 @@ def _process_invoice(
         previous_messages=previous_messages,
         discount_authorised=sme.get("discount_authorised", False),
         max_discount_percent=float(sme.get("max_discount_percent", 0)),
+        payment_link_url=payment_link_url,
     )
 
     try:

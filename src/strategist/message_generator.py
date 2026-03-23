@@ -41,6 +41,7 @@ class MessageContext:
     previous_messages: list[str] | None = None
     discount_authorised: bool = False
     max_discount_percent: float = 0.0
+    payment_link_url: str | None = None
 
 
 @dataclass
@@ -124,6 +125,12 @@ def _build_user_prompt(ctx: MessageContext) -> str:
         )
     else:
         prompt += "\nDo NOT offer any discounts.\n"
+
+    if ctx.payment_link_url:
+        prompt += (
+            f"\nA secure payment link is available: {ctx.payment_link_url}\n"
+            f"Include this link naturally in the email so the recipient can pay directly.\n"
+        )
 
     if ctx.previous_messages:
         prompt += "\nPrevious messages in this thread (for context, do not repeat):\n"

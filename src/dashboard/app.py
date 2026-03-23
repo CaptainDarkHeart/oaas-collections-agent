@@ -48,6 +48,11 @@ app = FastAPI(
     dependencies=[Depends(_require_auth)],
 )
 
+# Mount webhook router (no auth — webhooks use their own signature verification)
+from src.sentry.webhook_handler import router as webhook_router
+
+app.include_router(webhook_router)
+
 # Demo mode: use in-memory data when no Supabase credentials are configured
 DEMO_MODE = not os.environ.get("SUPABASE_URL")
 
