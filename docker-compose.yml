@@ -14,7 +14,7 @@ services:
     # To build locally instead of pulling from GHCR:
     # build: .
     ports:
-      - "8000:8000"
+      - "9100:8000"
     env_file:
       - path: .env
         required: false
