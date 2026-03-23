@@ -1,0 +1,42 @@
+# OaaS Collections Agent — Docker Compose
+#
+# Demo mode (no API keys needed):
+#   docker compose up dashboard
+#
+# Production mode (requires .env with API keys + Supabase credentials):
+#   docker compose up dashboard scheduler
+#
+# Portainer: paste this file into Stacks → Add Stack → Web editor
+
+services:
+  dashboard:
+    image: ghcr.io/captaindarkhart/oaas-collections-agent:latest
+    # To build locally instead of pulling from GHCR:
+    # build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - PORT=8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Scheduler: runs the daily collection cycle
+  # Only needed in production mode (requires API keys)
+  scheduler:
+    image: ghcr.io/captaindarkhart/oaas-collections-agent:latest
+    # build: .
+    command: ["python", "-m", "scripts.run_daily_sync"]
+    env_file:
+      - path: .env
+        required: false
+    restart: "no"
+    profiles:
+      - production
