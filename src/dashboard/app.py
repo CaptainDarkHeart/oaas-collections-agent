@@ -14,15 +14,39 @@ Provides:
 from __future__ import annotations
 
 import os
+import secrets
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from src.db.models import InvoicePhase, InvoiceStatus
 
-app = FastAPI(title="OaaS Collections Agent", version="0.1.0")
+app = FastAPI(
+    title="OaaS Collections Agent",
+    version="0.1.0",
+    dependencies=[Depends(_require_auth)],
+)
+
+_security = HTTPBasic()
+_DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
+
+
+def _require_auth(credentials: HTTPBasicCredentials = Depends(_security)) -> None:
+    if not _DASHBOARD_PASSWORD:
+        return  # No password set — open access
+    ok = secrets.compare_digest(
+        credentials.password.encode(), _DASHBOARD_PASSWORD.encode()
+    )
+    if not ok:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
 
 # Demo mode: use in-memory data when no Supabase credentials are configured
 DEMO_MODE = not os.environ.get("SUPABASE_URL")
