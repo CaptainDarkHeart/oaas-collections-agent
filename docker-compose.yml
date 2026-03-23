@@ -7,7 +7,7 @@
 #   docker compose up dashboard scheduler
 #
 # Portainer: paste this file into Stacks → Add Stack → Web editor
-# (Rebuild v2)
+# (Rebuild v3)
 
 services:
   dashboard:
