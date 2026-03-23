@@ -845,23 +845,6 @@ def _base_html(title: str, content: str) -> str:
             width: auto;
             display: block;
         }}
-        .nav-title {{
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--navy);
-            letter-spacing: -0.3px;
-        }}
-        .nav-title span {{
-            color: var(--cyan);
-            font-weight: 400;
-        }}
-        /* Show letterbox logo on desktop, square icon on mobile */
-        .logo-letterbox {{ display: block; }}
-        .logo-square {{ display: none; }}
-        @media (max-width: 600px) {{
-            .logo-letterbox {{ display: none; }}
-            .logo-square {{ display: block; }}
-        }}
         .nav-links {{
             display: flex;
             align-items: center;
@@ -1368,8 +1351,7 @@ def _base_html(title: str, content: str) -> str:
     <nav class="nav">
         <a href="/" class="nav-brand">
             <div class="nav-logo">
-                <img src="/static/logo-letterbox.png" alt="TactfulPay" class="logo-letterbox">
-                <img src="/static/logo-square.png" alt="TactfulPay" class="logo-square">
+                <img src="/static/logo-square.png" alt="TactfulPay">
             </div>
         </a>
         <div class="nav-links">
