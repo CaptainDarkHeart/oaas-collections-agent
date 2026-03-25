@@ -692,3 +692,65 @@ class TestGetPhaseStartDate:
 
         # Should fall back to created_at since inbound doesn't count
         assert result == created.date()
+
+
+# ---------------------------------------------------------------------------
+# Payment link caching
+# ---------------------------------------------------------------------------
+
+
+class TestPaymentLinkCaching:
+    """Tests for payment link caching on invoice records."""
+
+    @patch("src.main.settings")
+    @patch("src.main.generate_message")
+    @patch("src.main.send_collection_email")
+    @patch("src.main.schedule_next_send")
+    def test_existing_payment_link_is_reused(self, mock_schedule, mock_send, mock_gen, mock_settings):
+        """If invoice already has a payment_link_url, no Stripe call is made."""
+        mock_settings.stripe_secret_key = "sk_test_fake"
+        mock_settings.agent_default_name = "Alex"
+        mock_schedule.return_value = _NOW - timedelta(hours=1)
+        mock_gen.return_value = GeneratedMessage(subject="Hi", body="Pay here")
+        mock_send.return_value = EmailResult(success=True, message_id="msg-cache")
+
+        invoice = _make_invoice(payment_link_url="https://pay.stripe.com/cached_link")
+        db = _mock_db()
+        payment_links = _mock_payment_links()
+
+        result = _process_invoice(db, _mock_email_client(), payment_links, _make_sme(), invoice)
+
+        assert result is True
+        # Stripe should NOT have been called
+        payment_links.create_invoice_payment_link.assert_not_called()
+        # The cached URL should be passed to message context
+        ctx = mock_gen.call_args[0][0]
+        assert ctx.payment_link_url == "https://pay.stripe.com/cached_link"
+
+    @patch("src.main.settings")
+    @patch("src.main.generate_message")
+    @patch("src.main.send_collection_email")
+    @patch("src.main.schedule_next_send")
+    def test_null_payment_link_triggers_creation_and_storage(
+        self, mock_schedule, mock_send, mock_gen, mock_settings
+    ):
+        """If invoice has no payment_link_url, Stripe is called and result is persisted."""
+        mock_settings.stripe_secret_key = "sk_test_fake"
+        mock_settings.agent_default_name = "Alex"
+        mock_schedule.return_value = _NOW - timedelta(hours=1)
+        mock_gen.return_value = GeneratedMessage(subject="Hi", body="Pay here")
+        mock_send.return_value = EmailResult(success=True, message_id="msg-new")
+
+        invoice = _make_invoice()  # no payment_link_url
+        db = _mock_db()
+        payment_links = _mock_payment_links()
+
+        result = _process_invoice(db, _mock_email_client(), payment_links, _make_sme(), invoice)
+
+        assert result is True
+        payment_links.create_invoice_payment_link.assert_called_once()
+        # Verify the link was persisted to DB
+        db.update_invoice.assert_called_once()
+        update_call = db.update_invoice.call_args
+        assert update_call[0][1]["payment_link_url"] == "https://pay.stripe.com/test_link"
+        assert update_call[0][1]["payment_link_id"] == "plink_test"

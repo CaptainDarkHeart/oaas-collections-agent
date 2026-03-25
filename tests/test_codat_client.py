@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from src.sentry.codat_client import CodatClient, CodatCompany, CodatInvoice
+from src.sentry.codat_client import CodatClient
 
 
 class TestCodatClient:

@@ -13,21 +13,32 @@ Provides:
 
 from __future__ import annotations
 
+import logging
 import os
 import secrets
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from fastapi import Depends, FastAPI, File, Form, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 
-from src.db.models import InvoicePhase, InvoiceStatus
+from src.config import settings
+from src.db.models import (
+    AccountingConnection,
+    AccountingPlatform,
+    ConnectionStatus,
+    InvoicePhase,
+    InvoiceStatus,
+)
+from src.sentry.oauth import encrypt_token, exchange_code, generate_auth_url, get_xero_tenant_id
+
+logger = logging.getLogger(__name__)
 
 _security = HTTPBasic()
-_DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
+_DASHBOARD_PASSWORD = settings.dashboard_password
 
 
 def _require_auth(credentials: HTTPBasicCredentials = Depends(_security)) -> None:
@@ -62,7 +73,7 @@ _STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 # Mount webhook router (no auth — webhooks use their own signature verification)
-from src.sentry.webhook_handler import router as webhook_router
+from src.sentry.webhook_handler import router as webhook_router  # noqa: E402
 
 app.include_router(webhook_router)
 
@@ -82,10 +93,16 @@ def _db():
 # Demo data (in-memory, no database needed)
 # ---------------------------------------------------------------------------
 
+# OAuth state tokens for CSRF protection
+_oauth_states: dict[str, dict] = {}
+
 _DEMO_SME_ID = str(uuid4())
+_DEMO_SMES: dict[str, dict] = {}
 _DEMO_INVOICES: dict[str, dict] = {}
 _DEMO_CONTACTS: dict[str, list[dict]] = {}
 _DEMO_INTERACTIONS: dict[str, list[dict]] = {}
+_DEMO_CONNECTIONS: dict[str, dict] = {}
+_DEMO_FEES: dict[str, dict] = {}
 
 
 def _init_demo_data() -> None:
@@ -93,6 +110,20 @@ def _init_demo_data() -> None:
         return  # Already initialised
 
     sme_id = _DEMO_SME_ID
+    _DEMO_SMES[sme_id] = {
+        "id": sme_id,
+        "company_name": "Acme Digital Ltd",
+        "contact_email": "owner@acmedigital.co.uk",
+        "contact_phone": "+447700900100",
+        "accounting_platform": "csv",
+        "codat_company_id": None,
+        "stripe_customer_id": None,
+        "discount_authorised": True,
+        "max_discount_percent": 3,
+        "onboarded_at": (datetime.now(tz=UTC) - timedelta(days=30)).isoformat(),
+        "status": "active",
+    }
+
     test_data = [
         (
             "INV-2025-001",
@@ -182,12 +213,59 @@ def _init_demo_data() -> None:
             "james@whitmore.example.com",
             "Managing Partner",
         ),
+        (
+            "INV-2025-009",
+            "Pinnacle Group",
+            "8500.00",
+            55,
+            "resolved",
+            "paid",
+            "Laura Chen",
+            "l.chen@pinnacle.example.com",
+            "Finance Manager",
+        ),
+        (
+            "INV-2025-010",
+            "Greenfield Ltd",
+            "4200.00",
+            40,
+            "resolved",
+            "paid",
+            "David Park",
+            "d.park@greenfield.example.com",
+            "Accounts Director",
+        ),
+        (
+            "INV-2025-011",
+            "Atlas Consulting",
+            "15000.00",
+            95,
+            "human_review",
+            "written_off",
+            "Nina Patel",
+            "n.patel@atlas.example.com",
+            "Managing Director",
+        ),
     ]
 
     for inv_num, debtor, amount, days, phase, status, name, email, role in test_data:
         inv_id = str(uuid4())
         contact_id = str(uuid4())
         due = (date.today() - timedelta(days=days)).isoformat()
+
+        created_at = (datetime.now(tz=UTC) - timedelta(days=days)).isoformat()
+        resolved_at = None
+        fee_charged = False
+        fee_amount = None
+
+        if status == "paid":
+            resolved_at = (datetime.now(tz=UTC) - timedelta(days=max(days - 20, 2))).isoformat()
+            fee_charged = True
+            inv_amount = float(amount)
+            if inv_amount >= 5000:
+                fee_amount = str(round(inv_amount * 0.10, 2))
+            else:
+                fee_amount = "500.00"
 
         _DEMO_INVOICES[inv_id] = {
             "id": inv_id,
@@ -199,11 +277,27 @@ def _init_demo_data() -> None:
             "due_date": due,
             "current_phase": phase,
             "status": status,
-            "created_at": (datetime.now(tz=UTC) - timedelta(days=days)).isoformat(),
-            "resolved_at": None,
-            "fee_charged": False,
-            "fee_amount": None,
+            "created_at": created_at,
+            "resolved_at": resolved_at,
+            "fee_charged": fee_charged,
+            "fee_amount": fee_amount,
         }
+
+        # Create fee records for paid invoices
+        if status == "paid" and fee_amount:
+            fee_id = str(uuid4())
+            _DEMO_FEES[fee_id] = {
+                "id": fee_id,
+                "invoice_id": inv_id,
+                "sme_id": sme_id,
+                "fee_type": "percentage" if float(amount) >= 5000 else "flat",
+                "fee_amount": fee_amount,
+                "invoice_amount_recovered": amount,
+                "stripe_payment_intent_id": None,
+                "status": "charged",
+                "created_at": resolved_at,
+                "charged_at": resolved_at,
+            }
         _DEMO_CONTACTS[inv_id] = [
             {
                 "id": contact_id,
@@ -321,20 +415,25 @@ class _DemoDatabase:
 
     def list_active_smes(self):
         _init_demo_data()
-        return [
-            {
-                "id": _DEMO_SME_ID,
-                "company_name": "Acme Digital Ltd",
-                "contact_email": "owner@acmedigital.co.uk",
-                "discount_authorised": True,
-                "max_discount_percent": 3,
-                "status": "active",
-            }
-        ]
+        return [s for s in _DEMO_SMES.values() if s.get("status") == "active"]
 
     def list_active_invoices(self, sme_id=None):
         _init_demo_data()
-        return [v for v in _DEMO_INVOICES.values() if v["status"] == "active"]
+        invoices = [v for v in _DEMO_INVOICES.values() if v["status"] == "active"]
+        if sme_id:
+            invoices = [v for v in invoices if v["sme_id"] == str(sme_id)]
+        return invoices
+
+    def list_all_invoices(self, sme_id=None):
+        _init_demo_data()
+        invoices = list(_DEMO_INVOICES.values())
+        if sme_id:
+            invoices = [v for v in invoices if v["sme_id"] == str(sme_id)]
+        return invoices
+
+    def list_all_fees(self):
+        _init_demo_data()
+        return list(_DEMO_FEES.values())
 
     def get_invoice(self, invoice_id):
         _init_demo_data()
@@ -342,7 +441,30 @@ class _DemoDatabase:
 
     def get_sme(self, sme_id):
         _init_demo_data()
-        return self.list_active_smes()[0] if str(sme_id) == _DEMO_SME_ID else None
+        return _DEMO_SMES.get(str(sme_id))
+
+    def create_sme(self, sme):
+        _init_demo_data()
+        if hasattr(sme, "model_dump"):
+            data = sme.model_dump()
+            data = {k: str(v) if isinstance(v, UUID) else v for k, v in data.items()}
+            for k, v in data.items():
+                if isinstance(v, datetime):
+                    data[k] = v.isoformat()
+                if hasattr(v, "value"):
+                    data[k] = v.value
+        else:
+            data = sme
+        _DEMO_SMES[str(data["id"])] = data
+        return data
+
+    def update_sme(self, sme_id, updates):
+        _init_demo_data()
+        sid = str(sme_id)
+        if sid in _DEMO_SMES:
+            _DEMO_SMES[sid].update(updates)
+            return _DEMO_SMES[sid]
+        return None
 
     def list_contacts(self, invoice_id):
         _init_demo_data()
@@ -397,6 +519,28 @@ class _DemoDatabase:
     def _get_invoices(self):
         _init_demo_data()
         return _DEMO_INVOICES
+
+    # -- Accounting connections (demo) --
+
+    def list_connections(self, sme_id):
+        return [c for c in _DEMO_CONNECTIONS.values() if c.get("sme_id") == str(sme_id)]
+
+    def create_connection(self, connection):
+        data = connection.model_dump()
+        data = {k: str(v) if isinstance(v, UUID) else v for k, v in data.items()}
+        for k, v in data.items():
+            if isinstance(v, datetime):
+                data[k] = v.isoformat()
+            if hasattr(v, "value"):
+                data[k] = v.value
+        _DEMO_CONNECTIONS[str(connection.id)] = data
+        return data
+
+    def delete_connection(self, connection_id):
+        _DEMO_CONNECTIONS.pop(str(connection_id), None)
+
+    def get_connection_by_id(self, connection_id):
+        return _DEMO_CONNECTIONS.get(str(connection_id))
 
 
 def _demo_db():
@@ -482,10 +626,40 @@ def _fmt_currency(amount: str, currency: str = "GBP") -> str:
 
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard_home(request: Request):
+async def dashboard_home(
+    request: Request,
+    connected: str | None = None,
+    synced: str | None = None,
+    onboarded: str | None = None,
+):
     """Main dashboard: list all invoices across all SMEs."""
     db = _db()
     smes = db.list_active_smes()
+
+    # Build flash message HTML
+    flash_html = ""
+    if connected:
+        platform_name = connected.replace("quickbooks", "QuickBooks").replace("xero", "Xero")
+        flash_html = (
+            f'<div style="background: var(--success); color: white; padding: 12px 20px;'
+            f' border-radius: var(--radius-md); margin-bottom: 16px;">'
+            f'&#10003; Successfully connected to {platform_name}</div>'
+        )
+    elif synced is not None:
+        flash_html = (
+            f'<div style="background: var(--success); color: white; padding: 12px 20px;'
+            f' border-radius: var(--radius-md); margin-bottom: 16px;">'
+            f'&#10003; Sync complete &mdash; {synced} invoice(s) imported</div>'
+        )
+    elif onboarded is not None:
+        flash_html = (
+            '<div style="background: var(--success); color: white; padding: 12px 20px;'
+            ' border-radius: var(--radius-md); margin-bottom: 16px;">'
+            '&#10003; New client onboarded successfully</div>'
+        )
+
+    # Build connections panel
+    connections_html = _build_connections_panel(db, smes)
 
     rows = ""
     total_invoices = 0
@@ -541,6 +715,8 @@ async def dashboard_home(request: Request):
             outstanding=outstanding_fmt,
             recovery_rate=recovery_rate,
             sme_options=_sme_options(smes),
+            connections_html=connections_html,
+            flash_html=flash_html,
         )
     )
 
@@ -735,9 +911,538 @@ async def api_list_smes():
     return db.list_active_smes()
 
 
+@app.post("/api/smes")
+async def api_create_sme(request: Request):
+    """Create a new SME client via JSON API."""
+    from src.db.models import SME as _SME
+
+    body = await request.json()
+    sme = _SME(
+        company_name=body["company_name"],
+        contact_email=body["contact_email"],
+        contact_phone=body.get("contact_phone", ""),
+        accounting_platform=body.get("accounting_platform", "csv"),
+        discount_authorised=body.get("discount_authorised", False),
+        max_discount_percent=body.get("max_discount_percent", 0),
+    )
+    db = _db()
+    result = db.create_sme(sme)
+    return result
+
+
+@app.get("/api/smes/{sme_id}")
+async def api_get_sme(sme_id: str):
+    """Get SME details."""
+    db = _db()
+    sme = db.get_sme(UUID(sme_id))
+    if not sme:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="SME not found")
+    return sme
+
+
+@app.patch("/api/smes/{sme_id}")
+async def api_update_sme(sme_id: str, request: Request):
+    """Update SME fields."""
+    db = _db()
+    sme = db.get_sme(UUID(sme_id))
+    if not sme:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="SME not found")
+    body = await request.json()
+    result = db.update_sme(UUID(sme_id), body)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Onboarding
+# ---------------------------------------------------------------------------
+
+
+@app.get("/onboard", response_class=HTMLResponse)
+async def onboard_page():
+    """SME onboarding form."""
+    return HTMLResponse(_onboard_html())
+
+
+@app.post("/onboard")
+async def onboard_submit(
+    company_name: str = Form(...),
+    contact_email: str = Form(...),
+    contact_phone: str = Form(""),
+    accounting_platform: str = Form("csv"),
+    discount_authorised: bool = Form(False),
+    max_discount_percent: float = Form(0),
+):
+    """Create SME from onboarding form and redirect to dashboard."""
+    from src.db.models import SME as _SME
+
+    sme = _SME(
+        company_name=company_name,
+        contact_email=contact_email,
+        contact_phone=contact_phone,
+        accounting_platform=accounting_platform,
+        discount_authorised=discount_authorised,
+        max_discount_percent=max_discount_percent,
+    )
+    db = _db()
+    db.create_sme(sme)
+    return RedirectResponse("/?onboarded=true", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Reports
+# ---------------------------------------------------------------------------
+
+
+def _compute_reports(db) -> dict:
+    """Compute reporting data from the database."""
+    all_invoices = db.list_all_invoices()
+    all_fees = db.list_all_fees()
+
+    total = len(all_invoices)
+    paid_count = sum(1 for inv in all_invoices if inv["status"] == "paid")
+    recovery_rate = (paid_count / total * 100) if total > 0 else 0
+
+    # Average days to collection for resolved invoices
+    days_list = []
+    for inv in all_invoices:
+        if inv.get("resolved_at") and inv.get("created_at"):
+            try:
+                resolved = datetime.fromisoformat(str(inv["resolved_at"]))
+                created = datetime.fromisoformat(str(inv["created_at"]))
+                days_list.append((resolved - created).days)
+            except (ValueError, TypeError):
+                pass
+    avg_days = round(sum(days_list) / len(days_list), 1) if days_list else 0
+
+    # Revenue earned
+    revenue = sum(float(f["fee_amount"]) for f in all_fees if f.get("status") == "charged")
+
+    # Phase distribution
+    phase_counts: dict[str, int] = {}
+    for inv in all_invoices:
+        p = inv.get("current_phase", "unknown")
+        phase_counts[p] = phase_counts.get(p, 0) + 1
+
+    # Status breakdown
+    status_counts: dict[str, int] = {}
+    for inv in all_invoices:
+        s = inv.get("status", "unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
+
+    return {
+        "total_invoices": total,
+        "paid_count": paid_count,
+        "recovery_rate": round(recovery_rate, 1),
+        "avg_days_to_collection": avg_days,
+        "revenue_earned": round(revenue, 2),
+        "phase_distribution": phase_counts,
+        "status_breakdown": status_counts,
+    }
+
+
+@app.get("/api/reports")
+async def api_reports():
+    """JSON reporting endpoint."""
+    db = _db()
+    return _compute_reports(db)
+
+
+@app.get("/reports", response_class=HTMLResponse)
+async def reports_page():
+    """Reports dashboard page."""
+    db = _db()
+    data = _compute_reports(db)
+
+    # Build phase distribution bar chart
+    phase_bars = ""
+    max_phase = max(data["phase_distribution"].values()) if data["phase_distribution"] else 1
+    for phase, count in sorted(data["phase_distribution"].items()):
+        cfg = PHASE_COLORS.get(phase, {"bg": "#F3F4F6", "text": "#4B5563", "label": phase})
+        width_pct = (count / max_phase * 100) if max_phase > 0 else 0
+        phase_bars += f"""<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+            <div style="width:120px;font-size:13px;font-weight:600;color:{cfg['text']};flex-shrink:0">{cfg['label']}</div>
+            <div style="flex:1;background:var(--sand-dark);border-radius:6px;height:28px;overflow:hidden">
+                <div style="width:{width_pct}%;height:100%;background:{cfg['bg']};border-radius:6px;min-width:2px;
+                            display:flex;align-items:center;padding-left:10px;font-size:12px;font-weight:600;color:{cfg['text']}">{count}</div>
+            </div>
+        </div>"""
+
+    # Build status breakdown bar chart
+    status_bars = ""
+    max_status = max(data["status_breakdown"].values()) if data["status_breakdown"] else 1
+    for status, count in sorted(data["status_breakdown"].items()):
+        cfg = STATUS_CONFIG.get(status, {"bg": "#F3F4F6", "text": "#4B5563", "dot": "#6B7280"})
+        width_pct = (count / max_status * 100) if max_status > 0 else 0
+        label = status.replace("_", " ").title()
+        status_bars += f"""<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+            <div style="width:120px;font-size:13px;font-weight:600;color:{cfg['text']};flex-shrink:0;display:flex;align-items:center;gap:6px">
+                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{cfg['dot']}"></span>
+                {label}
+            </div>
+            <div style="flex:1;background:var(--sand-dark);border-radius:6px;height:28px;overflow:hidden">
+                <div style="width:{width_pct}%;height:100%;background:{cfg['bg']};border-radius:6px;min-width:2px;
+                            display:flex;align-items:center;padding-left:10px;font-size:12px;font-weight:600;color:{cfg['text']}">{count}</div>
+            </div>
+        </div>"""
+
+    revenue_fmt = f"\u00a3{data['revenue_earned']:,.2f}"
+    recovery_fmt = f"{data['recovery_rate']:.1f}%"
+    avg_days_fmt = f"{data['avg_days_to_collection']:.0f}" if data['avg_days_to_collection'] else "\u2014"
+
+    content = f"""
+    <div class="container">
+        <div class="page-header">
+            <h1>Recovery Reports</h1>
+            <p>Performance analytics across all collection activity.</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card stat-highlight">
+                <div class="stat-label">Revenue Earned</div>
+                <div class="stat-value">{revenue_fmt}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Recovery Rate</div>
+                <div class="stat-value">{recovery_fmt}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg Days to Collect</div>
+                <div class="stat-value">{avg_days_fmt}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Invoices</div>
+                <div class="stat-value">{data['total_invoices']}</div>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Phase Distribution</h2>
+                </div>
+                <div class="card-body">
+                    {phase_bars if phase_bars else '<p style="color:var(--text-muted)">No data yet.</p>'}
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2>Status Breakdown</h2>
+                </div>
+                <div class="card-body">
+                    {status_bars if status_bars else '<p style="color:var(--text-muted)">No data yet.</p>'}
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+
+    return HTMLResponse(_base_html("Reports", content))
+
+
+# ---------------------------------------------------------------------------
+# OAuth & accounting connections
+# ---------------------------------------------------------------------------
+
+
+@app.get("/connect/{platform}")
+async def connect_platform(platform: str, sme_id: str | None = None):
+    """Initiate OAuth flow for Xero or QuickBooks."""
+    if platform not in ("xero", "quickbooks"):
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail=f"Unsupported platform: {platform}")
+
+    db = _db()
+
+    # Resolve SME ID
+    if sme_id is None:
+        smes = db.list_active_smes()
+        if len(smes) == 1:
+            sme_id = smes[0]["id"]
+        else:
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=400,
+                detail="Multiple SMEs found — provide sme_id query param",
+            )
+
+    # Generate CSRF state token
+    state = secrets.token_urlsafe(32)
+    _oauth_states[state] = {
+        "sme_id": sme_id,
+        "platform": platform,
+        "created_at": datetime.now(tz=UTC),
+    }
+
+    acct_platform = AccountingPlatform(platform)
+    redirect_uri = f"{settings.oauth_redirect_base_url}/callback/{platform}"
+    auth_url = generate_auth_url(acct_platform, UUID(sme_id), state)
+
+    # Override the redirect_uri in the generated URL to use our dashboard callback
+    # The oauth module builds its own redirect URI, so we rebuild with ours
+    if platform == "xero":
+        from src.sentry.oauth import _XERO_AUTH_URL, _XERO_SCOPES
+
+        auth_url = (
+            f"{_XERO_AUTH_URL}"
+            f"?response_type=code"
+            f"&client_id={settings.xero_client_id}"
+            f"&redirect_uri={redirect_uri}"
+            f"&scope={_XERO_SCOPES}"
+            f"&state={state}"
+        )
+    elif platform == "quickbooks":
+        from src.sentry.oauth import _QB_AUTH_URL, _QB_SCOPES
+
+        auth_url = (
+            f"{_QB_AUTH_URL}"
+            f"?response_type=code"
+            f"&client_id={settings.quickbooks_client_id}"
+            f"&redirect_uri={redirect_uri}"
+            f"&scope={_QB_SCOPES}"
+            f"&state={state}"
+        )
+
+    return RedirectResponse(auth_url)
+
+
+@app.get("/callback/xero", dependencies=[])
+async def callback_xero(
+    code: str = Query(...),
+    state: str = Query(...),
+):
+    """Xero OAuth callback — no auth required."""
+    # Validate state
+    state_data = _oauth_states.pop(state, None)
+    if not state_data:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
+
+    sme_id = state_data["sme_id"]
+    redirect_uri = f"{settings.oauth_redirect_base_url}/callback/xero"
+
+    # Exchange code for tokens
+    token_resp = exchange_code(AccountingPlatform.XERO, code, redirect_uri)
+
+    access_token = token_resp["access_token"]
+    refresh_token = token_resp["refresh_token"]
+    expires_in = token_resp.get("expires_in", 1800)
+
+    # Get Xero tenant ID
+    tenant_id = get_xero_tenant_id(access_token)
+
+    # Encrypt tokens
+    encrypted_access = encrypt_token(access_token)
+    encrypted_refresh = encrypt_token(refresh_token)
+
+    # Store connection
+    connection = AccountingConnection(
+        sme_id=UUID(sme_id),
+        platform=AccountingPlatform.XERO,
+        access_token=encrypted_access,
+        refresh_token=encrypted_refresh,
+        token_expires_at=datetime.now(tz=UTC).replace(tzinfo=None) + timedelta(seconds=expires_in),
+        tenant_id=tenant_id,
+        status=ConnectionStatus.ACTIVE,
+    )
+    db = _db()
+    db.create_connection(connection)
+
+    return RedirectResponse("/?connected=xero", status_code=303)
+
+
+@app.get("/callback/quickbooks", dependencies=[])
+async def callback_quickbooks(
+    code: str = Query(...),
+    state: str = Query(...),
+    realmId: str = Query(...),  # noqa: N803 — QuickBooks sends this param name
+):
+    """QuickBooks OAuth callback — no auth required."""
+    # Validate state
+    state_data = _oauth_states.pop(state, None)
+    if not state_data:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
+
+    sme_id = state_data["sme_id"]
+    redirect_uri = f"{settings.oauth_redirect_base_url}/callback/quickbooks"
+
+    # Exchange code for tokens
+    token_resp = exchange_code(AccountingPlatform.QUICKBOOKS, code, redirect_uri)
+
+    access_token = token_resp["access_token"]
+    refresh_token = token_resp["refresh_token"]
+    expires_in = token_resp.get("expires_in", 3600)
+
+    # Encrypt tokens
+    encrypted_access = encrypt_token(access_token)
+    encrypted_refresh = encrypt_token(refresh_token)
+
+    # Store connection
+    connection = AccountingConnection(
+        sme_id=UUID(sme_id),
+        platform=AccountingPlatform.QUICKBOOKS,
+        access_token=encrypted_access,
+        refresh_token=encrypted_refresh,
+        token_expires_at=datetime.now(tz=UTC).replace(tzinfo=None) + timedelta(seconds=expires_in),
+        tenant_id=realmId,
+        status=ConnectionStatus.ACTIVE,
+    )
+    db = _db()
+    db.create_connection(connection)
+
+    return RedirectResponse("/?connected=quickbooks", status_code=303)
+
+
+@app.post("/disconnect/{connection_id}")
+async def disconnect_connection(connection_id: str):
+    """Remove an accounting connection."""
+    db = _db()
+    db.delete_connection(UUID(connection_id))
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/sync/{connection_id}")
+async def sync_connection(connection_id: str):
+    """Manual sync trigger for an accounting connection."""
+    try:
+        from src.sentry.invoice_sync import sync_from_connection, upsert_normalised_invoices
+
+        db = _db()
+        raw_invoices = sync_from_connection(UUID(connection_id), db)
+        count = upsert_normalised_invoices(raw_invoices, db)
+    except ImportError:
+        logger.warning("sync_from_connection not yet implemented — skipping sync")
+        count = 0
+    except Exception:
+        logger.exception("Sync failed for connection %s", connection_id)
+        count = 0
+
+    return RedirectResponse(f"/?synced={count}", status_code=303)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _build_connections_panel(db, smes: list[dict]) -> str:
+    """Build the accounting connections panel HTML."""
+    all_connections = []
+    for sme in smes:
+        try:
+            conns = db.list_connections(UUID(sme["id"]) if not isinstance(sme["id"], UUID) else sme["id"])
+            for c in conns:
+                c["_sme_name"] = sme["company_name"]
+            all_connections.extend(conns)
+        except Exception:
+            pass  # list_connections may not exist on older DB class
+
+    # Build connection items or connect buttons
+    if all_connections:
+        items = ""
+        for conn in all_connections:
+            platform = conn.get("platform", "unknown")
+            platform_label = platform.replace("quickbooks", "QuickBooks").replace("xero", "Xero")
+            conn_id = conn.get("id", "")
+            last_sync = conn.get("last_sync_at")
+
+            if last_sync:
+                try:
+                    if isinstance(last_sync, str):
+                        sync_dt = datetime.fromisoformat(last_sync)
+                    else:
+                        sync_dt = last_sync
+                    delta = datetime.now(tz=UTC).replace(tzinfo=None) - (
+                        sync_dt.replace(tzinfo=None) if sync_dt.tzinfo else sync_dt
+                    )
+                    hours = int(delta.total_seconds() // 3600)
+                    if hours < 1:
+                        sync_text = "Last sync: just now"
+                    elif hours < 24:
+                        sync_text = f"Last sync: {hours}h ago"
+                    else:
+                        days = hours // 24
+                        sync_text = f"Last sync: {days}d ago"
+                except Exception:
+                    sync_text = "Last sync: unknown"
+            else:
+                sync_text = "Never synced"
+
+            accent = "#13B5EA" if platform == "xero" else "#2CA01C"
+
+            items += f"""
+                <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+                            background: var(--sand); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                    <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+                                 background: {accent}; flex-shrink: 0;"></span>
+                    <span style="font-weight: 600; font-size: 14px; color: var(--text-primary);">
+                        {platform_label} connected</span>
+                    <span style="font-size: 12px; color: var(--text-muted);">&middot; {sync_text}</span>
+                    <form method="post" action="/sync/{conn_id}" style="display: inline; margin-left: auto;">
+                        <button type="submit" class="btn btn-outline" style="padding: 6px 14px; font-size: 12px;">
+                            Sync Now
+                        </button>
+                    </form>
+                    <form method="post" action="/disconnect/{conn_id}" style="display: inline;">
+                        <button type="submit" class="btn btn-outline"
+                                style="padding: 6px 14px; font-size: 12px; color: var(--danger); border-color: var(--danger);"
+                                onclick="return confirm('Disconnect this accounting integration?')">
+                            Disconnect
+                        </button>
+                    </form>
+                </div>"""
+
+        # Still show connect buttons for platforms not yet connected
+        connected_platforms = {c.get("platform") for c in all_connections}
+        extra_buttons = ""
+        if "xero" not in connected_platforms:
+            extra_buttons += (
+                '<a href="/connect/xero" class="btn btn-outline"'
+                ' style="padding: 8px 16px; font-size: 13px; color: #13B5EA; border-color: #13B5EA;">'
+                "Connect Xero</a>"
+            )
+        if "quickbooks" not in connected_platforms:
+            extra_buttons += (
+                '<a href="/connect/quickbooks" class="btn btn-outline"'
+                ' style="padding: 8px 16px; font-size: 13px; color: #2CA01C; border-color: #2CA01C;">'
+                "Connect QuickBooks</a>"
+            )
+
+        inner = f"""{items}
+            <div style="display: flex; gap: 12px; margin-top: 4px;">{extra_buttons}</div>"""
+    else:
+        inner = """
+            <a href="/connect/xero" class="btn btn-outline"
+               style="padding: 10px 20px; font-size: 14px; color: #13B5EA; border-color: #13B5EA;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                Connect Xero
+            </a>
+            <a href="/connect/quickbooks" class="btn btn-outline"
+               style="padding: 10px 20px; font-size: 14px; color: #2CA01C; border-color: #2CA01C;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                Connect QuickBooks
+            </a>"""
+
+    return f"""<div class="card" style="margin-bottom: 24px;">
+        <div class="card-header">
+            <h2>Accounting Connections</h2>
+        </div>
+        <div style="padding: 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+            {inner}
+        </div>
+    </div>"""
 
 
 def _escape(text: str) -> str:
@@ -1363,6 +2068,8 @@ def _base_html(title: str, content: str) -> str:
         </a>
         <div class="nav-links">
             <a href="/" class="nav-link active">Dashboard</a>
+            <a href="/onboard" class="nav-link">Add Client</a>
+            <a href="/reports" class="nav-link">Reports</a>
         </div>
     </nav>
     {content}
@@ -1378,6 +2085,8 @@ def _dashboard_html(
     outstanding: str,
     recovery_rate: str,
     sme_options: str,
+    connections_html: str = "",
+    flash_html: str = "",
 ) -> str:
     return _base_html(
         "Dashboard",
@@ -1387,6 +2096,10 @@ def _dashboard_html(
             <h1>Collections Dashboard</h1>
             <p>Track and manage overdue invoice recovery across all clients.</p>
         </div>
+
+        {flash_html}
+
+        {connections_html}
 
         <div class="stats-grid">
             <div class="stat-card stat-highlight">
@@ -1569,6 +2282,71 @@ def _detail_html(
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+    """,
+    )
+
+
+def _onboard_html() -> str:
+    return _base_html(
+        "Add Client",
+        f"""
+    <div class="container" style="max-width:680px">
+        <a href="/" class="back-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            Back to Dashboard
+        </a>
+        <div class="page-header">
+            <h1>Add New Client</h1>
+            <p>Onboard a new SME client to start collections.</p>
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <form method="post" action="/onboard">
+                    <div style="margin-bottom:20px">
+                        <label class="meta-label" for="company_name">Company Name *</label>
+                        <input type="text" name="company_name" id="company_name" required
+                               style="display:block;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;background:var(--white);color:var(--text-primary);margin-top:6px">
+                    </div>
+                    <div style="margin-bottom:20px">
+                        <label class="meta-label" for="contact_email">Contact Email *</label>
+                        <input type="email" name="contact_email" id="contact_email" required
+                               style="display:block;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;background:var(--white);color:var(--text-primary);margin-top:6px">
+                    </div>
+                    <div style="margin-bottom:20px">
+                        <label class="meta-label" for="contact_phone">Contact Phone</label>
+                        <input type="tel" name="contact_phone" id="contact_phone"
+                               style="display:block;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;background:var(--white);color:var(--text-primary);margin-top:6px">
+                    </div>
+                    <div style="margin-bottom:20px">
+                        <label class="meta-label" for="accounting_platform">Accounting Platform</label>
+                        <select name="accounting_platform" id="accounting_platform"
+                                style="display:block;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;background:var(--white);color:var(--text-primary);margin-top:6px">
+                            <option value="csv">CSV</option>
+                            <option value="xero">Xero</option>
+                            <option value="quickbooks">QuickBooks</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom:20px;display:flex;align-items:center;gap:10px">
+                        <input type="checkbox" name="discount_authorised" id="discount_authorised" value="true"
+                               style="width:18px;height:18px;accent-color:{COLORS['cyan']}">
+                        <label for="discount_authorised" style="font-size:14px;font-weight:500;color:var(--text-primary)">Discount Authorised</label>
+                    </div>
+                    <div style="margin-bottom:24px">
+                        <label class="meta-label" for="max_discount_percent">Max Discount %</label>
+                        <input type="number" name="max_discount_percent" id="max_discount_percent" value="0" min="0" max="100" step="0.5"
+                               style="display:block;width:200px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;background:var(--white);color:var(--text-primary);margin-top:6px">
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/>
+                            <line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
+                        </svg>
+                        Add Client
+                    </button>
+                </form>
             </div>
         </div>
     </div>

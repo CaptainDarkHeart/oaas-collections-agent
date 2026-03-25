@@ -4,7 +4,7 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from src.executor.payment_link import PaymentLinkResult, StripePaymentLinks
+from src.executor.payment_link import StripePaymentLinks
 
 
 class TestStripePaymentLinks:

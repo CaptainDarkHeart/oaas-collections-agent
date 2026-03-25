@@ -173,10 +173,19 @@ def import_csv(file_content: str | bytes, sme_id: UUID, db: Database) -> ImportR
     rows, parse_errors = parse_csv(file_content)
     result = ImportResult(errors=parse_errors)
 
+    # Query existing invoices for this SME to detect duplicates against DB
+    existing = db.list_all_invoices(sme_id=sme_id)
+    existing_numbers = {inv["invoice_number"] for inv in existing}
+
     seen_invoice_numbers: set[str] = set()
 
     for row in rows:
         inv_num = row["invoice_number"]
+
+        # De-duplicate against existing DB records
+        if inv_num in existing_numbers:
+            result.skipped += 1
+            continue
 
         # De-duplicate within this upload
         if inv_num in seen_invoice_numbers:

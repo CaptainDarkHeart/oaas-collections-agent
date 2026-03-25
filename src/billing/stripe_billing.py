@@ -21,6 +21,7 @@ from uuid import UUID
 import stripe
 
 from src.config import settings
+from src.utils.retry import with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,11 @@ class StripeBilling:
         self.api_key = api_key or settings.stripe_secret_key
         stripe.api_key = self.api_key
 
+    @with_retry(
+        max_attempts=3,
+        backoff_factor=1.0,
+        retryable_exceptions=(stripe.APIConnectionError, stripe.RateLimitError),
+    )
     def get_or_create_customer(
         self,
         sme_id: UUID,
@@ -78,6 +84,11 @@ class StripeBilling:
         logger.info("Created Stripe customer %s for SME %s", customer.id, company_name)
         return customer.id
 
+    @with_retry(
+        max_attempts=3,
+        backoff_factor=1.0,
+        retryable_exceptions=(stripe.APIConnectionError, stripe.RateLimitError),
+    )
     def create_fee_checkout(
         self,
         sme_id: UUID,

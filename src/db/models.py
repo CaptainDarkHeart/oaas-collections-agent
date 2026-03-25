@@ -85,6 +85,8 @@ class Classification(str, enum.Enum):
 class ContactSource(str, enum.Enum):
     CSV_UPLOAD = "csv_upload"
     CODAT_SYNC = "codat_sync"
+    XERO_SYNC = "xero_sync"
+    QUICKBOOKS_SYNC = "quickbooks_sync"
     DISCOVERY_AGENT = "discovery_agent"
     REDIRECT = "redirect"
 
@@ -134,8 +136,11 @@ class Invoice(BaseModel):
     status: InvoiceStatus = InvoiceStatus.ACTIVE
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC).replace(tzinfo=None))
     resolved_at: datetime | None = None
+    external_id: str | None = None
     fee_charged: bool = False
     fee_amount: Decimal | None = None
+    payment_link_url: str | None = None
+    payment_link_id: str | None = None
 
     @property
     def days_overdue(self) -> int:
@@ -171,6 +176,12 @@ class Interaction(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class ConnectionStatus(str, enum.Enum):
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+
+
 class Fee(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     invoice_id: UUID
@@ -182,6 +193,36 @@ class Fee(BaseModel):
     status: FeeStatus = FeeStatus.PENDING
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC).replace(tzinfo=None))
     charged_at: datetime | None = None
+
+
+class WebhookEvent(BaseModel):
+    """Record of a processed webhook event for idempotency."""
+
+    id: UUID = Field(default_factory=uuid4)
+    event_id: str
+    source: str
+    event_type: str
+    processed_at: datetime = Field(
+        default_factory=lambda: datetime.now(tz=UTC).replace(tzinfo=None)
+    )
+
+
+class AccountingConnection(BaseModel):
+    """OAuth connection to an external accounting platform (Xero/QuickBooks)."""
+
+    id: UUID = Field(default_factory=uuid4)
+    sme_id: UUID
+    platform: AccountingPlatform
+    access_token: str
+    refresh_token: str
+    token_expires_at: datetime
+    tenant_id: str = ""
+    connected_at: datetime = Field(
+        default_factory=lambda: datetime.now(tz=UTC).replace(tzinfo=None)
+    )
+    last_sync_at: datetime | None = None
+    status: ConnectionStatus = ConnectionStatus.ACTIVE
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +256,16 @@ class Database:
             .data
         )
 
+    def update_sme(self, sme_id: UUID, updates: dict) -> dict:
+        serialized = {k: self._serialize_value(v) for k, v in updates.items()}
+        return (
+            self.client.table("smes")
+            .update(serialized)
+            .eq("id", str(sme_id))
+            .execute()
+            .data[0]
+        )
+
     # -- Invoice --
 
     def create_invoice(self, invoice: Invoice) -> dict:
@@ -226,6 +277,13 @@ class Database:
 
     def list_active_invoices(self, sme_id: UUID | None = None) -> list[dict]:
         query = self.client.table("invoices").select("*").eq("status", InvoiceStatus.ACTIVE.value)
+        if sme_id:
+            query = query.eq("sme_id", str(sme_id))
+        return query.execute().data
+
+    def list_all_invoices(self, sme_id: UUID | None = None) -> list[dict]:
+        """List all invoices regardless of status, optionally filtered by SME."""
+        query = self.client.table("invoices").select("*")
         if sme_id:
             query = query.eq("sme_id", str(sme_id))
         return query.execute().data
@@ -297,6 +355,77 @@ class Database:
 
     def create_fee(self, fee: Fee) -> dict:
         return self.client.table("fees").insert(self._serialize(fee)).execute().data[0]
+
+    def list_all_fees(self) -> list[dict]:
+        """List all fee records."""
+        return self.client.table("fees").select("*").execute().data
+
+    # -- Accounting Connection --
+
+    def create_connection(self, connection: AccountingConnection) -> dict:
+        """Insert a new accounting connection."""
+        return (
+            self.client.table("accounting_connections")
+            .insert(self._serialize(connection))
+            .execute()
+            .data[0]
+        )
+
+    def get_connection(self, sme_id: UUID, platform: AccountingPlatform) -> dict | None:
+        """Get an accounting connection for an SME and platform."""
+        resp = (
+            self.client.table("accounting_connections")
+            .select("*")
+            .eq("sme_id", str(sme_id))
+            .eq("platform", platform.value)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
+
+    def update_connection(self, connection_id: UUID, **fields: Any) -> dict:
+        """Update fields on an existing accounting connection."""
+        serialized = {k: self._serialize_value(v) for k, v in fields.items()}
+        return (
+            self.client.table("accounting_connections")
+            .update(serialized)
+            .eq("id", str(connection_id))
+            .execute()
+            .data[0]
+        )
+
+    def list_connections(self, sme_id: UUID) -> list[dict]:
+        """List all accounting connections for an SME."""
+        return (
+            self.client.table("accounting_connections")
+            .select("*")
+            .eq("sme_id", str(sme_id))
+            .execute()
+            .data
+        )
+
+    def delete_connection(self, connection_id: UUID) -> None:
+        """Delete an accounting connection."""
+        self.client.table("accounting_connections").delete().eq(
+            "id", str(connection_id)
+        ).execute()
+
+    # -- Webhook Events (idempotency) --
+
+    def has_processed_event(self, event_id: str) -> bool:
+        """Check if a webhook event has already been processed."""
+        resp = (
+            self.client.table("webhook_events")
+            .select("id")
+            .eq("event_id", event_id)
+            .limit(1)
+            .execute()
+        )
+        return len(resp.data) > 0
+
+    def mark_event_processed(self, event_id: str, source: str, event_type: str) -> None:
+        """Record a webhook event as processed."""
+        evt = WebhookEvent(event_id=event_id, source=source, event_type=event_type)
+        self.client.table("webhook_events").insert(self._serialize(evt)).execute()
 
     # -- Helpers --
 

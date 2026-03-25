@@ -1,10 +1,9 @@
 """Tests for the Codat invoice sync job."""
 
-from decimal import Decimal
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from src.db.models import AccountingPlatform, InvoicePhase, InvoiceStatus
+from src.db.models import InvoicePhase, InvoiceStatus
 from src.sentry.codat_client import CodatInvoice
 from src.sentry.invoice_sync import run_invoice_sync
 
@@ -90,7 +89,7 @@ class TestInvoiceSync:
         ]
         codat.get_invoices.return_value = []
 
-        result = run_invoice_sync(db=db, codat=codat)
+        run_invoice_sync(db=db, codat=codat)
 
         assert db.create_invoice.call_count == 1  # only the new one
 
@@ -115,7 +114,7 @@ class TestInvoiceSync:
         paid_inv.paid_on_date = "2026-03-20"
         codat.get_invoices.return_value = [paid_inv]
 
-        result = run_invoice_sync(db=db, codat=codat)
+        run_invoice_sync(db=db, codat=codat)
 
         db.update_invoice.assert_called_once()
         update_call = db.update_invoice.call_args
@@ -149,6 +148,6 @@ class TestInvoiceSync:
         codat.get_overdue_invoices.return_value = [inv_no_number]
         codat.get_invoices.return_value = []
 
-        result = run_invoice_sync(db=db, codat=codat)
+        run_invoice_sync(db=db, codat=codat)
 
         db.create_invoice.assert_not_called()

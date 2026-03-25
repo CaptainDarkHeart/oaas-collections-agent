@@ -18,6 +18,7 @@ from datetime import date
 import requests
 
 from src.config import settings
+from src.utils.retry import resilient_session
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class CodatClient:
 
     def __init__(self, api_key: str | None = None) -> None:
         self.api_key = api_key or settings.codat_api_key
-        self.session = requests.Session()
+        self.session = resilient_session()
         self.session.headers.update(
             {
                 "Authorization": f"Basic {self.api_key}",

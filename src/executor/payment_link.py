@@ -15,6 +15,7 @@ from uuid import UUID
 import stripe
 
 from src.config import settings
+from src.utils.retry import with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,11 @@ class StripePaymentLinks:
         self.api_key = api_key or settings.stripe_secret_key
         stripe.api_key = self.api_key
 
+    @with_retry(
+        max_attempts=3,
+        backoff_factor=1.0,
+        retryable_exceptions=(stripe.APIConnectionError, stripe.RateLimitError),
+    )
     def create_invoice_payment_link(
         self,
         invoice_id: UUID,
@@ -90,6 +96,7 @@ class StripePaymentLinks:
                 "invoice_id": str(invoice_id),
                 "invoice_number": invoice_number,
                 "debtor_company": debtor_company,
+                "payment_type": "debtor_payment",
             }
             if sme_id:
                 metadata["sme_id"] = str(sme_id)

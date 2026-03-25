@@ -149,18 +149,30 @@ def _process_invoice(
     # Generate a payment link for this invoice (if Stripe is configured)
     payment_link_url = None
     if settings.stripe_secret_key:
-        from decimal import Decimal as _Decimal
+        # Reuse cached payment link if available
+        cached_url = invoice.get("payment_link_url")
+        if cached_url:
+            payment_link_url = cached_url
+        else:
+            from decimal import Decimal as _Decimal
 
-        link_result = payment_links.create_invoice_payment_link(
-            invoice_id=invoice_id,
-            invoice_number=invoice["invoice_number"],
-            debtor_company=invoice["debtor_company"],
-            amount=_Decimal(str(invoice["amount"])),
-            currency=invoice.get("currency", "GBP"),
-            sme_id=UUID(sme["id"]),
-        )
-        if link_result.success:
-            payment_link_url = link_result.url
+            link_result = payment_links.create_invoice_payment_link(
+                invoice_id=invoice_id,
+                invoice_number=invoice["invoice_number"],
+                debtor_company=invoice["debtor_company"],
+                amount=_Decimal(str(invoice["amount"])),
+                currency=invoice.get("currency", "GBP"),
+                sme_id=UUID(sme["id"]),
+            )
+            if link_result.success:
+                payment_link_url = link_result.url
+                db.update_invoice(
+                    invoice_id,
+                    {
+                        "payment_link_url": link_result.url,
+                        "payment_link_id": link_result.payment_link_id,
+                    },
+                )
 
     # Build context and generate message
     previous_messages = [

@@ -66,9 +66,14 @@ def schedule_next_send(
     if last_contact_at:
         min_next = last_contact_at + timedelta(hours=MIN_CONTACT_GAP_HOURS)
         if scheduled < min_next:
-            # Push to the next business day
+            # Push forward until we find a business-hours slot that respects the gap
             next_day = _next_business_day(target_date + timedelta(days=1))
             scheduled = datetime.combine(next_day, _random_business_time())
+            # If the random time on the next day still doesn't satisfy the gap
+            # (e.g. last contact was 6pm, next day 9am = only 15h), keep pushing
+            while scheduled < min_next:
+                next_day = _next_business_day(next_day + timedelta(days=1))
+                scheduled = datetime.combine(next_day, _random_business_time())
 
     return scheduled
 

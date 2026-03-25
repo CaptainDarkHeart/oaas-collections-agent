@@ -22,6 +22,19 @@ class Settings(BaseSettings):
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
 
+    # Xero
+    xero_client_id: str = ""
+    xero_client_secret: str = ""
+
+    # QuickBooks
+    quickbooks_client_id: str = ""
+    quickbooks_client_secret: str = ""
+    quickbooks_sandbox: bool = True
+
+    # OAuth
+    oauth_redirect_base_url: str = ""
+    token_encryption_key: str = ""
+
     # Supabase
     supabase_url: str = ""
     supabase_anon_key: str = ""
@@ -29,6 +42,9 @@ class Settings(BaseSettings):
 
     # Slack
     slack_webhook_url: str = ""
+
+    # Dashboard
+    dashboard_password: str = ""
 
     # Application
     agent_default_name: str = "Alex"

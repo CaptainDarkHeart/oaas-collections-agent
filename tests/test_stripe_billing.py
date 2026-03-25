@@ -4,7 +4,7 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from src.billing.stripe_billing import ChargeResult, StripeBilling
+from src.billing.stripe_billing import StripeBilling
 
 
 class TestStripeBilling:

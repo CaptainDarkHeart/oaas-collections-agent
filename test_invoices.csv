@@ -1,0 +1,6 @@
+ebtor_company,contact_name,contact_email,invoice_number,amount,due_date
+Acme Corp,James Fletcher,james.fletcher@acmecorp.com,INV-001,12500.00,2026-01-01
+Bright Solutions Ltd,Sarah Kim,sarah.kim@brightsolutions.co.uk,INV-002,7800.00,2026-01-15
+Delta Ventures,Tom Hargreaves,t.hargreaves@deltaventures.com,INV-003,3200.00,2026-02-10
+Nexus Digital,Priya Sharma,priya@nexusdigital.io,INV-004,15000.00,2025-12-20
+Greenfield & Sons,Mark Greenfield,mark@greenfieldsons.co.uk,INV-005,5500.00,2026-02-20
