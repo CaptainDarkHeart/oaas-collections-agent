@@ -103,6 +103,13 @@ class FeeStatus(str, enum.Enum):
     WAIVED = "waived"
 
 
+class EmailDomainStatus(str, enum.Enum):
+    NOT_STARTED = "not_started"
+    PENDING = "pending"
+    VERIFIED = "verified"
+    FAILED = "failed"
+
+
 # ---------------------------------------------------------------------------
 # Pydantic models
 # ---------------------------------------------------------------------------
@@ -205,6 +212,21 @@ class WebhookEvent(BaseModel):
     processed_at: datetime = Field(
         default_factory=lambda: datetime.now(tz=UTC).replace(tzinfo=None)
     )
+
+
+class EmailDomain(BaseModel):
+    """Per-SME custom email domain registered with Resend."""
+
+    id: UUID = Field(default_factory=uuid4)
+    sme_id: UUID
+    domain_name: str
+    resend_domain_id: str
+    status: EmailDomainStatus = EmailDomainStatus.NOT_STARTED
+    sending_email: str | None = None
+    dns_records: list[dict[str, Any]] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC).replace(tzinfo=None))
+    verified_at: datetime | None = None
+    last_checked_at: datetime | None = None
 
 
 class AccountingConnection(BaseModel):
@@ -359,6 +381,34 @@ class Database:
     def list_all_fees(self) -> list[dict]:
         """List all fee records."""
         return self.client.table("fees").select("*").execute().data
+
+    # -- Email Domain --
+
+    def create_email_domain(self, domain: EmailDomain) -> dict:
+        return self.client.table("email_domains").insert(self._serialize(domain)).execute().data[0]
+
+    def get_email_domain_by_sme(self, sme_id: UUID) -> dict | None:
+        resp = self.client.table("email_domains").select("*").eq("sme_id", str(sme_id)).execute()
+        return resp.data[0] if resp.data else None
+
+    def update_email_domain(self, domain_id: UUID, updates: dict) -> dict:
+        serialized = {k: self._serialize_value(v) for k, v in updates.items()}
+        return (
+            self.client.table("email_domains")
+            .update(serialized)
+            .eq("id", str(domain_id))
+            .execute()
+            .data[0]
+        )
+
+    def list_pending_domains(self) -> list[dict]:
+        return (
+            self.client.table("email_domains")
+            .select("*")
+            .eq("status", EmailDomainStatus.PENDING.value)
+            .execute()
+            .data
+        )
 
     # -- Accounting Connection --
 

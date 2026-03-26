@@ -56,7 +56,7 @@ class TestOnboardPage:
             follow_redirects=False,
         )
         assert resp.status_code == 303
-        assert "onboarded=true" in resp.headers["location"]
+        assert "/domain?new=true" in resp.headers["location"]
         # Verify SME was created
         assert len(_DEMO_SMES) >= 1
         sme = list(_DEMO_SMES.values())[-1]

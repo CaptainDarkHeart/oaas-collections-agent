@@ -103,6 +103,7 @@ _DEMO_CONTACTS: dict[str, list[dict]] = {}
 _DEMO_INTERACTIONS: dict[str, list[dict]] = {}
 _DEMO_CONNECTIONS: dict[str, dict] = {}
 _DEMO_FEES: dict[str, dict] = {}
+_DEMO_EMAIL_DOMAINS: dict[str, dict] = {}  # keyed by sme_id
 
 
 def _init_demo_data() -> None:
@@ -541,6 +542,35 @@ class _DemoDatabase:
 
     def get_connection_by_id(self, connection_id):
         return _DEMO_CONNECTIONS.get(str(connection_id))
+
+    # -- Email domains (demo) --
+
+    def create_email_domain(self, domain):
+        if hasattr(domain, "model_dump"):
+            data = domain.model_dump()
+            data = {k: str(v) if isinstance(v, UUID) else v for k, v in data.items()}
+            for k, v in data.items():
+                if isinstance(v, datetime):
+                    data[k] = v.isoformat()
+                if hasattr(v, "value"):
+                    data[k] = v.value
+        else:
+            data = domain
+        _DEMO_EMAIL_DOMAINS[str(data["sme_id"])] = data
+        return data
+
+    def get_email_domain_by_sme(self, sme_id):
+        return _DEMO_EMAIL_DOMAINS.get(str(sme_id))
+
+    def update_email_domain(self, domain_id, updates):
+        for d in _DEMO_EMAIL_DOMAINS.values():
+            if d.get("id") == str(domain_id):
+                d.update(updates)
+                return d
+        return None
+
+    def list_pending_domains(self):
+        return [d for d in _DEMO_EMAIL_DOMAINS.values() if d.get("status") == "pending"]
 
 
 def _demo_db():
@@ -989,7 +1019,123 @@ async def onboard_submit(
     )
     db = _db()
     db.create_sme(sme)
-    return RedirectResponse("/?onboarded=true", status_code=303)
+    return RedirectResponse(f"/sme/{sme.id}/domain?new=true", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Email Domain Setup
+# ---------------------------------------------------------------------------
+
+
+@app.get("/sme/{sme_id}/domain", response_class=HTMLResponse)
+async def domain_setup_page(sme_id: str, new: str | None = None, verified: str | None = None):
+    """Email domain configuration page."""
+    db = _db()
+    sme = db.get_sme(UUID(sme_id))
+    if not sme:
+        return HTMLResponse("SME not found", status_code=404)
+
+    domain_record = db.get_email_domain_by_sme(UUID(sme_id))
+    return HTMLResponse(_domain_html(sme, domain_record, is_new=new == "true", just_verified=verified == "true"))
+
+
+@app.post("/sme/{sme_id}/domain")
+async def domain_register(sme_id: str, domain_name: str = Form(...)):
+    """Register a custom email domain via Resend."""
+    from src.db.models import EmailDomain, EmailDomainStatus
+
+    db = _db()
+    sme = db.get_sme(UUID(sme_id))
+    if not sme:
+        return HTMLResponse("SME not found", status_code=404)
+
+    # Check if domain already exists for this SME
+    existing = db.get_email_domain_by_sme(UUID(sme_id))
+    if existing:
+        return RedirectResponse(f"/sme/{sme_id}/domain", status_code=303)
+
+    if DEMO_MODE:
+        # In demo mode, create a mock domain record
+        domain = EmailDomain(
+            sme_id=UUID(sme_id),
+            domain_name=domain_name,
+            resend_domain_id=f"demo_{uuid4().hex[:8]}",
+            status=EmailDomainStatus.PENDING,
+            sending_email=f"{settings.agent_default_name.lower()}@{domain_name}",
+            dns_records=[
+                {"type": "TXT", "name": domain_name, "value": "v=spf1 include:resend.com ~all", "status": "pending"},
+                {"type": "CNAME", "name": f"resend._domainkey.{domain_name}", "value": "resend.domainkey.resend.dev", "status": "pending"},
+                {"type": "TXT", "name": f"_dmarc.{domain_name}", "value": "v=DMARC1; p=none;", "status": "pending"},
+            ],
+        )
+        db.create_email_domain(domain)
+    else:
+        from src.executor.domain_manager import ResendDomainManager
+
+        manager = ResendDomainManager()
+        result = manager.create_domain(domain_name)
+        if not result.success:
+            return HTMLResponse(
+                _base_html("Error", f"""
+                <div class="container" style="max-width:680px">
+                    <div class="card"><div class="card-body">
+                        <h2 style="color:var(--danger)">Domain Registration Failed</h2>
+                        <p>{_escape(result.error or 'Unknown error')}</p>
+                        <a href="/sme/{sme_id}/domain" class="btn btn-primary" style="margin-top:16px">Try Again</a>
+                    </div></div>
+                </div>"""),
+                status_code=400,
+            )
+
+        domain = EmailDomain(
+            sme_id=UUID(sme_id),
+            domain_name=domain_name,
+            resend_domain_id=result.domain_id,
+            status=EmailDomainStatus.PENDING,
+            sending_email=f"{settings.agent_default_name.lower()}@{domain_name}",
+            dns_records=result.dns_records,
+        )
+        db.create_email_domain(domain)
+
+    return RedirectResponse(f"/sme/{sme_id}/domain", status_code=303)
+
+
+@app.post("/sme/{sme_id}/domain/verify")
+async def domain_verify(sme_id: str):
+    """Trigger domain verification check."""
+    db = _db()
+    domain_record = db.get_email_domain_by_sme(UUID(sme_id))
+    if not domain_record:
+        return RedirectResponse(f"/sme/{sme_id}/domain", status_code=303)
+
+    if DEMO_MODE:
+        # In demo mode, just mark as verified
+        from datetime import UTC, datetime
+
+        db.update_email_domain(UUID(domain_record["id"]), {
+            "status": "verified",
+            "verified_at": datetime.now(tz=UTC).replace(tzinfo=None).isoformat(),
+            "last_checked_at": datetime.now(tz=UTC).replace(tzinfo=None).isoformat(),
+        })
+    else:
+        from src.executor.domain_manager import ResendDomainManager
+
+        manager = ResendDomainManager()
+        result = manager.verify_domain(domain_record["resend_domain_id"])
+        updates = {"last_checked_at": datetime.now(tz=UTC).replace(tzinfo=None).isoformat()}
+        if result.success:
+            updates["status"] = result.status
+            if result.records:
+                updates["dns_records"] = result.records
+            if result.status == "verified":
+                updates["verified_at"] = datetime.now(tz=UTC).replace(tzinfo=None).isoformat()
+        db.update_email_domain(UUID(domain_record["id"]), updates)
+
+    redirect_url = f"/sme/{sme_id}/domain"
+    updated = db.get_email_domain_by_sme(UUID(sme_id))
+    if updated and updated.get("status") == "verified":
+        redirect_url += "?verified=true"
+    return RedirectResponse(redirect_url, status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -2284,6 +2430,151 @@ def _detail_html(
                 </div>
             </div>
         </div>
+    </div>
+    """,
+    )
+
+
+def _domain_html(sme: dict, domain_record: dict | None, is_new: bool = False, just_verified: bool = False) -> str:
+    company = _escape(sme.get("company_name", ""))
+    sme_id = sme["id"]
+
+    flash = ""
+    if is_new:
+        flash = (
+            f'<div style="background:{COLORS["success"]};color:white;padding:12px 20px;'
+            f'border-radius:8px;margin-bottom:16px">'
+            f'&#10003; Client onboarded successfully. Now set up their email domain.</div>'
+        )
+    elif just_verified:
+        flash = (
+            f'<div style="background:{COLORS["success"]};color:white;padding:12px 20px;'
+            f'border-radius:8px;margin-bottom:16px">'
+            f'&#10003; Domain verified! Collection emails will now send from this domain.</div>'
+        )
+
+    if not domain_record:
+        # State 1: No domain — show registration form
+        content = f"""
+        <div class="card">
+            <div class="card-header"><h2>Connect Email Domain</h2></div>
+            <div class="card-body">
+                <p style="color:var(--text-secondary);margin-bottom:20px">
+                    To send collection emails that appear to come from {company}'s domain,
+                    register the domain below. You'll receive DNS records to add to your DNS provider.
+                </p>
+                <form method="post" action="/sme/{sme_id}/domain">
+                    <div style="margin-bottom:20px">
+                        <label class="meta-label" for="domain_name">Domain Name *</label>
+                        <input type="text" name="domain_name" id="domain_name" required
+                               placeholder="e.g. mail.yourcompany.com"
+                               style="display:block;width:100%;max-width:400px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;background:var(--white);color:var(--text-primary);margin-top:6px">
+                        <p style="font-size:12px;color:var(--text-muted);margin-top:6px">
+                            Use a subdomain (e.g. mail.yourcompany.com) to avoid conflicts with existing email.
+                        </p>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/>
+                        </svg>
+                        Register Domain
+                    </button>
+                </form>
+            </div>
+        </div>"""
+    elif domain_record.get("status") == "verified":
+        # State 3: Verified
+        sending = _escape(domain_record.get("sending_email", ""))
+        domain_name = _escape(domain_record.get("domain_name", ""))
+        content = f"""
+        <div class="card">
+            <div class="card-header"><h2>Email Domain</h2></div>
+            <div class="card-body">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+                    <span style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;background:#D1FAE5;border-radius:50%">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#065F46" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                    <div>
+                        <div style="font-weight:600;font-size:16px;color:var(--text-primary)">Domain Verified</div>
+                        <div style="font-size:13px;color:var(--text-muted)">{domain_name}</div>
+                    </div>
+                </div>
+                <div style="background:var(--sand);border:1px solid var(--border);border-radius:8px;padding:16px">
+                    <div style="font-size:13px;color:var(--text-muted);margin-bottom:4px">Sending as</div>
+                    <div style="font-size:15px;font-weight:600;color:var(--text-primary)">{sending}</div>
+                </div>
+            </div>
+        </div>"""
+    else:
+        # State 2: Pending — show DNS records
+        domain_name = _escape(domain_record.get("domain_name", ""))
+        records = domain_record.get("dns_records", [])
+
+        rows = ""
+        for r in records:
+            rec_type = _escape(str(r.get("type", r.get("record_type", ""))))
+            rec_name = _escape(str(r.get("name", r.get("host", ""))))
+            rec_value = _escape(str(r.get("value", r.get("data", ""))))
+            rec_status = r.get("status", "pending")
+            status_color = COLORS["success"] if rec_status == "verified" else COLORS["warning"]
+            status_icon = "&#10003;" if rec_status == "verified" else "&#8987;"
+            rows += f"""
+                <tr>
+                    <td style="font-weight:600">{rec_type}</td>
+                    <td style="font-family:monospace;font-size:12px;word-break:break-all">{rec_name}</td>
+                    <td style="font-family:monospace;font-size:12px;word-break:break-all;max-width:300px">{rec_value}</td>
+                    <td><span style="color:{status_color};font-weight:600">{status_icon} {rec_status.title()}</span></td>
+                </tr>"""
+
+        content = f"""
+        <div class="card">
+            <div class="card-header"><h2>DNS Configuration Required</h2></div>
+            <div class="card-body">
+                <div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;padding:16px;margin-bottom:20px">
+                    <div style="font-weight:600;color:#92400E;margin-bottom:4px">Action Required</div>
+                    <div style="font-size:13px;color:#92400E">
+                        Add the following DNS records to your domain provider for <strong>{domain_name}</strong>.
+                        Propagation typically takes a few minutes to a few hours.
+                    </div>
+                </div>
+
+                <table class="data-table" style="margin-bottom:20px">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Name / Host</th>
+                            <th>Value</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>{rows}</tbody>
+                </table>
+
+                <form method="post" action="/sme/{sme_id}/domain/verify">
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                        Verify Domain
+                    </button>
+                </form>
+            </div>
+        </div>"""
+
+    return _base_html(
+        f"Email Setup — {company}",
+        f"""
+    <div class="container" style="max-width:780px">
+        <a href="/" class="back-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            Back to Dashboard
+        </a>
+        <div class="page-header">
+            <h1>Email Setup</h1>
+            <p>Configure the sending domain for {company}'s collection emails.</p>
+        </div>
+        {flash}
+        {content}
     </div>
     """,
     )

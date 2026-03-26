@@ -56,6 +56,9 @@ def run_daily_cycle(
 
     logger.info("Starting daily cycle at %s", datetime.now(tz=UTC).replace(tzinfo=None).isoformat())
 
+    # Check pending domain verifications
+    _check_pending_domains(db)
+
     for sme in db.list_active_smes():
         sme_id = sme["id"]
         sme_name = sme["company_name"]
@@ -71,6 +74,34 @@ def run_daily_cycle(
                 emails_sent_today += 1
 
     logger.info("Daily cycle complete. Emails sent: %d", emails_sent_today)
+
+
+def _check_pending_domains(db: Database) -> None:
+    """Poll Resend for status updates on pending email domains."""
+    try:
+        from src.executor.domain_manager import ResendDomainManager
+
+        pending = db.list_pending_domains()
+        if not pending:
+            return
+
+        manager = ResendDomainManager()
+        for domain in pending:
+            result = manager.get_domain_status(domain["resend_domain_id"])
+            if not result.success:
+                continue
+            updates: dict = {"last_checked_at": datetime.now(tz=UTC).replace(tzinfo=None).isoformat()}
+            if result.status == "verified":
+                updates["status"] = "verified"
+                updates["verified_at"] = datetime.now(tz=UTC).replace(tzinfo=None).isoformat()
+                logger.info("Domain %s verified for SME %s", domain["domain_name"], domain["sme_id"])
+            elif result.status != domain.get("status"):
+                updates["status"] = result.status
+            if result.records:
+                updates["dns_records"] = result.records
+            db.update_email_domain(UUID(domain["id"]), updates)
+    except Exception:
+        logger.exception("Error checking pending domains")
 
 
 def _process_invoice(
@@ -204,10 +235,20 @@ def _process_invoice(
         logger.exception("Failed to generate message for invoice %s", invoice["invoice_number"])
         return False
 
-    # Send the email
+    # Send the email — use SME's custom domain if verified
     previous_message_id = (
         last_outbound.get("metadata", {}).get("message_id") if last_outbound else None
     )
+
+    agent_email = None
+    try:
+        domain_record = db.get_email_domain_by_sme(UUID(sme["id"]))
+        if domain_record and domain_record.get("status") == "verified":
+            agent_email = domain_record.get("sending_email") or (
+                f"{settings.agent_default_name.lower()}@{domain_record['domain_name']}"
+            )
+    except Exception:
+        pass  # Fall back to default
 
     send_result = send_collection_email(
         client=email_client,
@@ -216,6 +257,7 @@ def _process_invoice(
         subject=msg.subject,
         body=msg.body,
         agent_name=settings.agent_default_name,
+        agent_email=agent_email,
         previous_message_id=previous_message_id if msg.is_reply_to_sent else None,
     )
 
