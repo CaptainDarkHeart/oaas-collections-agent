@@ -29,7 +29,7 @@ from src.db.models import (
     MessageType,
 )
 from src.executor.cadence import can_contact_today, is_within_daily_limit, schedule_next_send
-from src.executor.email_sender import InstantlyClient, send_collection_email
+from src.executor.email_sender import ResendClient, send_collection_email
 from src.executor.payment_link import StripePaymentLinks
 from src.notifications import email_alerts, slack_webhook
 from src.strategist.message_generator import MessageContext, generate_message
@@ -45,12 +45,12 @@ logger = logging.getLogger(__name__)
 
 def run_daily_cycle(
     db: Database | None = None,
-    email_client: InstantlyClient | None = None,
+    email_client: ResendClient | None = None,
     payment_links: StripePaymentLinks | None = None,
 ) -> None:
     """Run the full daily processing cycle for all active invoices."""
     db = db or Database()
-    email_client = email_client or InstantlyClient()
+    email_client = email_client or ResendClient()
     payment_links = payment_links or StripePaymentLinks()
     emails_sent_today = 0
 
@@ -75,7 +75,7 @@ def run_daily_cycle(
 
 def _process_invoice(
     db: Database,
-    email_client: InstantlyClient,
+    email_client: ResendClient,
     payment_links: StripePaymentLinks,
     sme: dict,
     invoice: dict,
@@ -255,7 +255,7 @@ def _process_invoice(
 
 def process_inbound_reply(
     db: Database,
-    email_client: InstantlyClient,
+    email_client: ResendClient,
     invoice_id: UUID,
     contact_id: UUID,
     reply_text: str,
@@ -352,7 +352,7 @@ def process_inbound_reply(
 
 def _send_notifications(
     db: Database,
-    email_client: InstantlyClient,
+    email_client: ResendClient,
     sme: dict,
     invoice: dict,
     reason: str,

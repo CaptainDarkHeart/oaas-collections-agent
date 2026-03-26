@@ -79,6 +79,15 @@ def seed() -> None:
             "contact_email": "alex@startupco.example.com",
             "contact_role": "CEO",
         },
+        {
+            "invoice_number": "INV-TEST-STEWART",
+            "debtor_company": "Confusion & Joy",
+            "amount": Decimal("6500.00"),
+            "due_date": date.today() - timedelta(days=90),
+            "contact_name": "Stewart Rogers",
+            "contact_email": "stewart.rogers@gmail.com",
+            "contact_role": "Director",
+        },
     ]
 
     for inv_data in test_invoices:

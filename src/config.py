@@ -9,8 +9,11 @@ class Settings(BaseSettings):
     codat_api_key: str = ""
     codat_webhook_secret: str = ""
 
-    # Instantly.ai
+    # Instantly.ai (kept for account management)
     instantly_api_key: str = ""
+
+    # Resend (transactional email sending)
+    resend_api_key: str = ""
 
     # Vapi
     vapi_api_key: str = ""

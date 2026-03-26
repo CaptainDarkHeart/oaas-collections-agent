@@ -8,11 +8,11 @@ Uses Instantly.ai (same sender infrastructure) for alert delivery.
 
 from __future__ import annotations
 
-from src.executor.email_sender import EmailResult, InstantlyClient
+from src.executor.email_sender import EmailResult, ResendClient
 
 
 def send_owner_alert(
-    client: InstantlyClient,
+    client: ResendClient,
     owner_email: str,
     owner_name: str,
     subject: str,
@@ -29,7 +29,7 @@ def send_owner_alert(
 
 
 def alert_dispute(
-    client: InstantlyClient,
+    client: ResendClient,
     owner_email: str,
     owner_name: str,
     invoice_number: str,
@@ -56,7 +56,7 @@ def alert_dispute(
 
 
 def alert_hostile(
-    client: InstantlyClient,
+    client: ResendClient,
     owner_email: str,
     owner_name: str,
     invoice_number: str,
@@ -83,7 +83,7 @@ def alert_hostile(
 
 
 def alert_human_review(
-    client: InstantlyClient,
+    client: ResendClient,
     owner_email: str,
     owner_name: str,
     invoice_number: str,
@@ -109,7 +109,7 @@ def alert_human_review(
 
 
 def alert_promise_to_pay(
-    client: InstantlyClient,
+    client: ResendClient,
     owner_email: str,
     owner_name: str,
     invoice_number: str,
