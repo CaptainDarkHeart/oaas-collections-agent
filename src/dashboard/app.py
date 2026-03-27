@@ -37,13 +37,29 @@ from src.sentry.oauth import encrypt_token, exchange_code, generate_auth_url, ge
 
 logger = logging.getLogger(__name__)
 
-_security = HTTPBasic()
+_security = HTTPBasic(auto_error=False)
 _DASHBOARD_PASSWORD = settings.dashboard_password
 
+# Paths accessible without authentication
+_PUBLIC_PATHS = {"/", "/health"}
 
-def _require_auth(credentials: HTTPBasicCredentials = Depends(_security)) -> None:
+
+def _require_auth(
+    request: Request,
+    credentials: HTTPBasicCredentials | None = Depends(_security),
+) -> None:
+    if request.url.path in _PUBLIC_PATHS:
+        return  # Public pages — no auth required
     if not _DASHBOARD_PASSWORD:
         return  # No password set — open access
+    if credentials is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Basic"},
+        )
     ok = secrets.compare_digest(credentials.password.encode(), _DASHBOARD_PASSWORD.encode())
     if not ok:
         from fastapi import HTTPException
@@ -655,7 +671,13 @@ def _fmt_currency(amount: str, currency: str = "GBP") -> str:
 # ---------------------------------------------------------------------------
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/", dependencies=[], response_class=HTMLResponse)
+async def landing_page() -> HTMLResponse:
+    """Public marketing landing page — no auth required."""
+    return HTMLResponse(_landing_html())
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_home(
     request: Request,
     connected: str | None = None,
@@ -902,13 +924,13 @@ async def resume_invoice(invoice_id: str):
 @app.post("/upload-csv")
 async def upload_csv(sme_id: str = Form(...), file: UploadFile = File(...)):
     if DEMO_MODE:
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/dashboard", status_code=303)
     from src.sentry.csv_importer import import_csv
 
     db = _db()
     content = await file.read()
     import_csv(content, UUID(sme_id), db)
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse("/dashboard", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -1400,7 +1422,7 @@ async def callback_xero(
     db = _db()
     db.create_connection(connection)
 
-    return RedirectResponse("/?connected=xero", status_code=303)
+    return RedirectResponse("/dashboard?connected=xero", status_code=303)
 
 
 @app.get("/callback/quickbooks", dependencies=[])
@@ -1444,7 +1466,7 @@ async def callback_quickbooks(
     db = _db()
     db.create_connection(connection)
 
-    return RedirectResponse("/?connected=quickbooks", status_code=303)
+    return RedirectResponse("/dashboard?connected=quickbooks", status_code=303)
 
 
 @app.post("/disconnect/{connection_id}")
@@ -1452,7 +1474,7 @@ async def disconnect_connection(connection_id: str):
     """Remove an accounting connection."""
     db = _db()
     db.delete_connection(UUID(connection_id))
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse("/dashboard", status_code=303)
 
 
 @app.post("/sync/{connection_id}")
@@ -1471,7 +1493,7 @@ async def sync_connection(connection_id: str):
         logger.exception("Sync failed for connection %s", connection_id)
         count = 0
 
-    return RedirectResponse(f"/?synced={count}", status_code=303)
+    return RedirectResponse(f"/dashboard?synced={count}", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -1612,6 +1634,657 @@ def _sme_options(smes: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 # HTML templates
 # ---------------------------------------------------------------------------
+
+
+def _landing_html() -> str:
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TactfulPay: Capital Recovered, Relationships Intact</title>
+    <link rel="icon" type="image/png" href="/static/logo-square.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --green: #00B368;
+            --green-hover: #009959;
+            --navy: #1B2A3B;
+            --navy-mid: #2D3E53;
+            --light: #F9FAFB;
+            --text-dark: #202A37;
+            --text-mid: #4B5563;
+            --text-light: #9CA3AF;
+            --white: #ffffff;
+            --border: #E5E7EB;
+            --red: #EF4444;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--light);
+            color: var(--text-dark);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Navbar ── */
+        .lp-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(249, 250, 251, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            height: 65px;
+            display: flex;
+            align-items: center;
+            padding: 0 40px;
+            justify-content: space-between;
+        }
+        .lp-nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+        .lp-nav-brand img { height: 32px; width: auto; }
+        .lp-nav-brand span {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-dark);
+            letter-spacing: -0.3px;
+        }
+        .lp-nav-links {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .lp-nav-links a {
+            color: var(--text-mid);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 7px 14px;
+            border-radius: 6px;
+            transition: color 0.15s, background 0.15s;
+        }
+        .lp-nav-links a:hover { color: var(--text-dark); background: rgba(0,0,0,0.04); }
+        .lp-nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .btn-login {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-dark);
+            text-decoration: none;
+            padding: 7px 16px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--white);
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .btn-login:hover { border-color: #9CA3AF; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .btn-primary {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--white);
+            text-decoration: none;
+            padding: 8px 18px;
+            border-radius: 6px;
+            background: var(--green);
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+        .btn-primary:hover { background: var(--green-hover); }
+
+        /* ── Hero ── */
+        .lp-hero {
+            min-height: 90vh;
+            display: flex;
+            align-items: center;
+            background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+            position: relative;
+            overflow: hidden;
+        }
+        .lp-hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+        .lp-hero-glow1 {
+            position: absolute;
+            top: 33%;
+            right: 25%;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            background: rgba(0,179,104,0.05);
+            filter: blur(60px);
+        }
+        .lp-hero-glow2 {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            background: rgba(0,179,104,0.05);
+            filter: blur(60px);
+        }
+        .lp-hero-inner {
+            position: relative;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 80px 40px;
+            width: 100%;
+        }
+        .lp-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(0,179,104,0.3);
+            background: rgba(0,179,104,0.1);
+            margin-bottom: 28px;
+        }
+        .lp-badge-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.85); }
+        }
+        .lp-badge span {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--green);
+            letter-spacing: 0.2px;
+        }
+        .lp-hero h1 {
+            font-size: clamp(40px, 5vw, 64px);
+            font-weight: 800;
+            color: var(--white);
+            line-height: 1.1;
+            letter-spacing: -1.5px;
+            margin-bottom: 6px;
+        }
+        .lp-hero h1 .green { color: var(--green); }
+        .lp-hero-desc {
+            font-size: 17px;
+            color: rgba(255,255,255,0.65);
+            line-height: 1.65;
+            max-width: 520px;
+            margin: 20px 0 36px;
+        }
+        .lp-hero-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--green);
+            color: var(--white);
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 14px 28px;
+            border-radius: 6px;
+            transition: background 0.15s, transform 0.15s;
+        }
+        .lp-hero-cta:hover { background: var(--green-hover); transform: translateY(-1px); }
+        .lp-trust {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            margin-top: 28px;
+            flex-wrap: wrap;
+        }
+        .lp-trust-item {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 13px;
+            color: rgba(255,255,255,0.55);
+        }
+        .lp-trust-item svg { color: var(--green); flex-shrink: 0; }
+
+        /* ── Section common ── */
+        .lp-section { padding: 96px 40px; }
+        .lp-section-inner { max-width: 1200px; margin: 0 auto; }
+        .lp-light { background: var(--light); }
+        .lp-dark { background: var(--navy); }
+        .lp-white { background: var(--white); }
+
+        .lp-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--green);
+            margin-bottom: 14px;
+        }
+        .lp-section-title {
+            font-size: clamp(28px, 3.5vw, 44px);
+            font-weight: 800;
+            color: var(--text-dark);
+            letter-spacing: -1px;
+            line-height: 1.15;
+            max-width: 640px;
+            margin-bottom: 16px;
+        }
+        .lp-dark .lp-section-title { color: var(--white); }
+        .lp-section-desc {
+            font-size: 16px;
+            color: var(--text-mid);
+            line-height: 1.65;
+            max-width: 600px;
+            margin-bottom: 56px;
+        }
+        .lp-dark .lp-section-desc { color: rgba(255,255,255,0.6); }
+
+        /* ── Stat cards ── */
+        .lp-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+        .lp-stat-card {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 28px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .lp-stat-icon { margin-bottom: 14px; color: var(--red); }
+        .lp-stat-num {
+            font-size: 36px;
+            font-weight: 800;
+            color: var(--text-dark);
+            letter-spacing: -1px;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+        .lp-stat-desc { font-size: 14px; color: var(--text-mid); }
+
+        /* ── Feature cards ── */
+        .lp-features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 0;
+        }
+        .lp-feature-card {
+            background: rgba(45, 62, 83, 0.5);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 32px;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .lp-feature-card:hover { border-color: rgba(0,179,104,0.3); transform: translateY(-2px); }
+        .lp-feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background: rgba(0,179,104,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 18px;
+            color: var(--green);
+        }
+        .lp-feature-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--white);
+            margin-bottom: 10px;
+        }
+        .lp-feature-desc { font-size: 14px; color: rgba(255,255,255,0.55); line-height: 1.6; }
+
+        /* ── Pricing card ── */
+        .lp-pricing-wrap { max-width: 560px; margin: 0 auto; text-align: center; }
+        .lp-pricing-wrap .lp-section-title { max-width: none; margin: 0 auto 14px; }
+        .lp-pricing-wrap .lp-section-desc { max-width: none; margin: 0 auto 40px; }
+        .lp-price-card {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        }
+        .lp-price-label { font-size: 13px; font-weight: 600; color: var(--text-mid); margin-bottom: 16px; }
+        .lp-price-num {
+            font-size: 72px;
+            font-weight: 800;
+            color: var(--green);
+            letter-spacing: -3px;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+        .lp-price-sub { font-size: 14px; color: var(--text-mid); margin-bottom: 28px; }
+        .lp-checklist { list-style: none; text-align: left; }
+        .lp-checklist li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 15px;
+            color: var(--text-dark);
+            padding: 9px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .lp-checklist li:last-child { border-bottom: none; }
+        .lp-checklist .check { color: var(--green); flex-shrink: 0; }
+        .lp-checklist .cross { color: var(--red); flex-shrink: 0; text-decoration: line-through; }
+        .lp-checklist li.strike { color: var(--text-light); text-decoration: line-through; }
+        .lp-price-note { font-size: 13px; color: var(--text-mid); margin-top: 20px; font-style: italic; }
+
+        /* ── Portal section ── */
+        .lp-portal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+        .lp-integrations { display: flex; gap: 10px; flex-wrap: wrap; margin: 24px 0 36px; }
+        .lp-integration-tag {
+            padding: 8px 18px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-dark);
+            background: var(--white);
+        }
+        .lp-portal-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--green);
+            color: var(--white);
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 14px 28px;
+            border-radius: 6px;
+            transition: background 0.15s;
+        }
+        .lp-portal-cta:hover { background: var(--green-hover); }
+
+        /* ── Footer ── */
+        .lp-footer {
+            background: var(--navy);
+            padding: 48px 40px;
+        }
+        .lp-footer-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .lp-footer-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            padding-bottom: 32px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            margin-bottom: 24px;
+        }
+        .lp-footer-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        .lp-footer-brand img { height: 28px; width: auto; opacity: 0.85; }
+        .lp-footer-brand span { font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.85); }
+        .lp-footer-tagline { font-size: 13px; color: rgba(255,255,255,0.4); margin-top: 8px; }
+        .lp-footer-links { display: flex; gap: 24px; }
+        .lp-footer-links a { font-size: 14px; color: rgba(255,255,255,0.5); text-decoration: none; transition: color 0.15s; }
+        .lp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+        .lp-footer-bottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            color: rgba(255,255,255,0.3);
+        }
+        .lp-footer-bottom a { color: rgba(255,255,255,0.4); text-decoration: underline; }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+            .lp-stats { grid-template-columns: 1fr; }
+            .lp-features { grid-template-columns: 1fr; }
+            .lp-portal-grid { grid-template-columns: 1fr; gap: 32px; }
+            .lp-footer-top { flex-direction: column; gap: 24px; }
+        }
+        @media (max-width: 640px) {
+            .lp-nav { padding: 0 16px; }
+            .lp-nav-links { display: none; }
+            .lp-section { padding: 64px 20px; }
+            .lp-hero-inner { padding: 60px 20px; }
+            .lp-trust { gap: 14px; }
+            .lp-footer { padding: 40px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="lp-nav">
+    <a href="/" class="lp-nav-brand">
+        <img src="/static/logo-square.png" alt="TactfulPay">
+        <span>TactfulPay</span>
+    </a>
+    <div class="lp-nav-links">
+        <a href="#problem">The Problem</a>
+        <a href="#approach">Our Approach</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#portal">Get Started</a>
+    </div>
+    <div class="lp-nav-actions">
+        <a href="/dashboard" class="btn-login">Login</a>
+        <a href="#portal" class="btn-primary">Secure My Cash Flow</a>
+    </div>
+</nav>
+
+<!-- Hero -->
+<section class="lp-hero">
+    <div class="lp-hero-glow1"></div>
+    <div class="lp-hero-glow2"></div>
+    <div class="lp-hero-inner">
+        <div class="lp-badge">
+            <div class="lp-badge-dot"></div>
+            <span>Outcome-as-a-Service</span>
+        </div>
+        <h1>
+            Capital recovered.<br>
+            <span class="green">Relationships intact.</span>
+        </h1>
+        <p class="lp-hero-desc">Stop chasing invoices with generic templates or aggressive collectors. TactfulPay uses behavioral psychology and tactical empathy to secure your payments while preserving your client bonds: all with zero upfront cost.</p>
+        <a href="#portal" class="lp-hero-cta">
+            Secure My Cash Flow
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+        <div class="lp-trust">
+            <div class="lp-trust-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+                No subscriptions
+            </div>
+            <div class="lp-trust-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                No setup fees
+            </div>
+            <div class="lp-trust-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                10% commission only when you get paid
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- The Friction -->
+<section class="lp-section lp-light" id="problem">
+    <div class="lp-section-inner">
+        <p class="lp-label">The Friction</p>
+        <h2 class="lp-section-title">The &ldquo;Checking In&rdquo; trap is killing your growth.</h2>
+        <p class="lp-section-desc">Small business owners lose hundreds of hours every year to administrative inertia. You are forced to choose between being the &ldquo;annoying&rdquo; vendor or the &ldquo;ignored&rdquo; creditor. Traditional collection agencies are a blunt instrument: they recover the money but destroy the reputation you spent years building.</p>
+        <div class="lp-stats">
+            <div class="lp-stat-card">
+                <div class="lp-stat-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div class="lp-stat-num">340+</div>
+                <div class="lp-stat-desc">Hours lost yearly to invoice chasing</div>
+            </div>
+            <div class="lp-stat-card">
+                <div class="lp-stat-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                </div>
+                <div class="lp-stat-num">68%</div>
+                <div class="lp-stat-desc">Of small businesses face late payments</div>
+            </div>
+            <div class="lp-stat-card">
+                <div class="lp-stat-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </div>
+                <div class="lp-stat-num">1 in 4</div>
+                <div class="lp-stat-desc">Client relationships damaged by collections</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- The Tact Engine -->
+<section class="lp-section lp-dark" id="approach">
+    <div class="lp-section-inner">
+        <p class="lp-label">The Tact Engine</p>
+        <h2 class="lp-section-title">Sophisticated negotiation: at scale.</h2>
+        <p class="lp-section-desc">Our autonomous agents are trained in the science of bilateral negotiation and empathy-based communication. We do not use threats: we use psychology to move your invoice to the top of the pile.</p>
+        <div class="lp-features">
+            <div class="lp-feature-card">
+                <div class="lp-feature-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <div class="lp-feature-title">Tactical Empathy</div>
+                <div class="lp-feature-desc">We identify the client&rsquo;s internal hurdles and solve them collaboratively. No threats. No ultimatums. Just skilled, human negotiation.</div>
+            </div>
+            <div class="lp-feature-card">
+                <div class="lp-feature-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                </div>
+                <div class="lp-feature-title">Strategic Cadence</div>
+                <div class="lp-feature-desc">A multi-channel sequence across email and AI-voice that builds professional pressure without hostility. Every touchpoint is deliberate.</div>
+            </div>
+            <div class="lp-feature-card">
+                <div class="lp-feature-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                </div>
+                <div class="lp-feature-title">The Accountability Loop</div>
+                <div class="lp-feature-desc">We secure firm payment dates and follow up with precision. Commitments are tracked, documented, and enforced through structured follow-through.</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- OaaS Pricing -->
+<section class="lp-section lp-light" id="pricing">
+    <div class="lp-section-inner">
+        <div class="lp-pricing-wrap">
+            <p class="lp-label">Outcome-as-a-Service</p>
+            <h2 class="lp-section-title">We are your outsourced recovery department.</h2>
+            <p class="lp-section-desc">TactfulPay is not another SaaS tool for you to manage. It is a results-driven service. We do not charge for seats or access: we charge for outcomes.</p>
+            <div class="lp-price-card">
+                <div class="lp-price-label">Results-Based Pricing</div>
+                <div class="lp-price-num">10%</div>
+                <div class="lp-price-sub">of successfully recovered payments</div>
+                <ul class="lp-checklist">
+                    <li><svg class="check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Zero upfront cost</li>
+                    <li><svg class="check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> No monthly subscriptions</li>
+                    <li><svg class="check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> No setup or onboarding fees</li>
+                    <li><svg class="check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Multi-channel recovery campaigns</li>
+                    <li><svg class="check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Dedicated autonomous agent assigned to your account</li>
+                    <li class="strike"><svg class="cross" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Charges for unsuccessful recoveries</li>
+                </ul>
+                <p class="lp-price-note">If our autonomous agents do not collect: you pay nothing.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- The Portal -->
+<section class="lp-section lp-light" id="portal">
+    <div class="lp-section-inner">
+        <div class="lp-portal-grid">
+            <div>
+                <p class="lp-label">The Portal</p>
+                <h2 class="lp-section-title">From overdue to paid in sixty seconds.</h2>
+                <p class="lp-section-desc" style="margin-bottom: 0;">You do not need to spend weeks on a complex ERP integration. Simply export your outstanding invoices from Xero, QuickBooks, or your custom ledger and upload the CSV. Our autonomous agents deploy instantly to begin the reconciliation process.</p>
+                <div class="lp-integrations">
+                    <span class="lp-integration-tag">Xero</span>
+                    <span class="lp-integration-tag">QuickBooks</span>
+                    <span class="lp-integration-tag">FreshBooks</span>
+                    <span class="lp-integration-tag">Custom CSV</span>
+                </div>
+                <a href="/onboard" class="lp-portal-cta">
+                    Secure My Cash Flow
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </a>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <div style="background:linear-gradient(135deg,var(--navy),var(--navy-mid));border-radius:16px;padding:40px 36px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+                    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--green);margin-bottom:20px;">Live Recovery Dashboard</div>
+                    <div style="display:flex;flex-direction:column;gap:12px;">
+                        <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:14px;color:rgba(255,255,255,0.7);">INV-2025-001 &bull; BigCorp</span>
+                            <span style="font-size:12px;background:rgba(0,179,104,0.15);color:var(--green);padding:3px 10px;border-radius:999px;font-weight:600;">Phase 2</span>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:14px;color:rgba(255,255,255,0.7);">INV-2025-003 &bull; GlobalSvc</span>
+                            <span style="font-size:12px;background:rgba(239,68,68,0.15);color:#F87171;padding:3px 10px;border-radius:999px;font-weight:600;">Phase 3</span>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:14px;color:rgba(255,255,255,0.7);">INV-2025-005 &bull; Pinnacle</span>
+                            <span style="font-size:12px;background:rgba(0,179,104,0.15);color:var(--green);padding:3px 10px;border-radius:999px;font-weight:600;">Paid ✓</span>
+                        </div>
+                    </div>
+                    <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;font-size:13px;color:rgba(255,255,255,0.4);">
+                        <span>3 active recoveries</span>
+                        <span style="color:var(--green);">£21,200 in pipeline</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer class="lp-footer">
+    <div class="lp-footer-inner">
+        <div class="lp-footer-top">
+            <div>
+                <a href="/" class="lp-footer-brand">
+                    <img src="/static/logo-square.png" alt="TactfulPay">
+                    <span>TactfulPay</span>
+                </a>
+                <p class="lp-footer-tagline">The Autonomous Settlement Engine.</p>
+            </div>
+            <div class="lp-footer-links">
+                <a href="#problem">The Problem</a>
+                <a href="#approach">Our Approach</a>
+                <a href="#pricing">Pricing</a>
+                <a href="#portal">Get Started</a>
+            </div>
+        </div>
+        <div class="lp-footer-bottom">
+            <span>&copy; 2026 TactfulPay. All rights reserved.</span>
+            <span>Our communication methodology draws from established negotiation principles, including those outlined in Chris Voss&rsquo;s &ldquo;<a href="#">Never Split the Difference</a>&rdquo;.</span>
+        </div>
+    </div>
+</footer>
+
+</body>
+</html>"""
 
 
 def _base_html(title: str, content: str) -> str:
@@ -2207,13 +2880,13 @@ def _base_html(title: str, content: str) -> str:
 </head>
 <body>
     <nav class="nav">
-        <a href="/" class="nav-brand">
+        <a href="/dashboard" class="nav-brand">
             <div class="nav-logo">
                 <img src="/static/logo-square.png" alt="TactfulPay">
             </div>
         </a>
         <div class="nav-links">
-            <a href="/" class="nav-link active">Dashboard</a>
+            <a href="/dashboard" class="nav-link active">Dashboard</a>
             <a href="/onboard" class="nav-link">Add Client</a>
             <a href="/reports" class="nav-link">Reports</a>
         </div>
