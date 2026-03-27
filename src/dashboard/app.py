@@ -1684,7 +1684,7 @@ def _landing_html() -> str:
             height: 65px;
             display: flex;
             align-items: center;
-            padding: 0 40px;
+            padding: 0 56px 0 40px;
             justify-content: space-between;
         }
         .lp-nav-brand {
@@ -1758,7 +1758,7 @@ def _landing_html() -> str:
             content: '';
             position: absolute;
             inset: 0;
-            background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+            background-image: url("data:image/svg+xml,%3Csvg width='28' height='28' xmlns='http://www.w3.org/2000/svg'%3E%3Cline x1='14' y1='10' x2='14' y2='18' stroke='rgba(255,255,255,0.1)' stroke-width='1'/%3E%3Cline x1='10' y1='14' x2='18' y2='14' stroke='rgba(255,255,255,0.1)' stroke-width='1'/%3E%3C/svg%3E");
             background-size: 28px 28px;
         }
         .lp-hero-glow1 {
@@ -2083,8 +2083,8 @@ def _landing_html() -> str:
         <a href="#portal">Get Started</a>
     </div>
     <div class="lp-nav-actions">
-        <a href="/dashboard" class="btn-login">Login</a>
         <a href="#portal" class="btn-primary">Secure My Cash Flow</a>
+        <a href="/dashboard" class="btn-login">Login</a>
     </div>
 </nav>
 
