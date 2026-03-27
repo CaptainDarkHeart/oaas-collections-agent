@@ -13,6 +13,12 @@ Classify the following email reply into exactly one of these categories:
 6. HOSTILE - The sender is angry, threatens legal action, or demands
    no further contact
 7. NO_RESPONSE - No reply received within the phase window
+8. WRITE_OFF_CLAIMED - The sender claims that the invoice has been
+   written off, cancelled, or forgiven by the creditor (e.g. "we were
+   told this was written off", "our records show this debt was cancelled",
+   "we understood this invoice was no longer owed"). Use this ONLY when
+   the claim is that the creditor agreed to cancel the debt — not when
+   the debtor simply refuses to pay or disputes the amount owed.
 
 Reply with ONLY the category name and a one-sentence justification.
 

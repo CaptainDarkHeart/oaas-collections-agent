@@ -380,6 +380,18 @@ def process_inbound_reply(
                 invoice["debtor_company"],
                 reply_text,
             )
+        elif classification == Classification.WRITE_OFF_CLAIMED:
+            slack_webhook.notify_write_off_claimed(
+                invoice["invoice_number"], invoice["debtor_company"], reply_text[:200]
+            )
+            email_alerts.alert_write_off_claimed(
+                email_client,
+                sme["contact_email"],
+                sme["company_name"],
+                invoice["invoice_number"],
+                invoice["debtor_company"],
+                reply_text,
+            )
 
     elif result.action == "redirect":
         # TODO: Parse new contact details from reply and add to sequence

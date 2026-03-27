@@ -93,6 +93,22 @@ def notify_hostile(invoice_number: str, debtor_company: str, reply_excerpt: str)
     )
 
 
+def notify_write_off_claimed(invoice_number: str, debtor_company: str, reply_excerpt: str) -> bool:
+    """Alert: Debtor claims the invoice was written off — agent paused, SME must verify."""
+    return send_alert(
+        title="Write-Off Claimed — Verify with SME",
+        message=(
+            f"The debtor is claiming that Invoice #{invoice_number} was written off "
+            f"or cancelled. The agent has paused all outreach. "
+            f"The SME must confirm or deny this via the dashboard.\n\n"
+            f"Reply excerpt: _{reply_excerpt[:200]}_"
+        ),
+        invoice_number=invoice_number,
+        debtor_company=debtor_company,
+        severity="warning",
+    )
+
+
 def notify_human_review(invoice_number: str, debtor_company: str, reason: str) -> bool:
     """Alert: Invoice flagged for human review (e.g., Phase 4 exhausted)."""
     return send_alert(

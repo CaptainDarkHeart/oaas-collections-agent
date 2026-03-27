@@ -627,6 +627,7 @@ PHASE_COLORS = {
     "human_review": {"bg": "#FEE2E2", "text": "#991B1B", "label": "Human Review"},
     "resolved": {"bg": "#D1FAE5", "text": "#065F46", "label": "Resolved"},
     "disputed": {"bg": "#FFEDD5", "text": "#9A3412", "label": "Disputed"},
+    "write_off_claimed": {"bg": "#F3E8FF", "text": "#6B21A8", "label": "Write-Off Claimed"},
 }
 
 STATUS_CONFIG = {
@@ -857,7 +858,20 @@ async def invoice_detail(invoice_id: str):
 
     # Action buttons
     actions = ""
-    if invoice["status"] in ("paused", "disputed"):
+    if invoice["current_phase"] == InvoicePhase.WRITE_OFF_CLAIMED.value:
+        actions = (
+            f'<form method="post" action="/invoices/{invoice_id}/confirm-write-off" class="inline-form">'
+            f'<button type="submit" class="btn btn-warning">'
+            f'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'
+            f"Confirm Write-Off"
+            f"</button></form>"
+            f'<form method="post" action="/invoices/{invoice_id}/deny-write-off" class="inline-form" style="margin-left:8px">'
+            f'<button type="submit" class="btn btn-primary">'
+            f'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>'
+            f"Debtor Lied &mdash; Resume"
+            f"</button></form>"
+        )
+    elif invoice["status"] in ("paused", "disputed"):
         actions = f"""<form method="post" action="/invoices/{invoice_id}/resume" class="inline-form">
             <button type="submit" class="btn btn-primary">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -916,6 +930,51 @@ async def resume_invoice(invoice_id: str):
             {
                 "status": InvoiceStatus.ACTIVE.value,
                 "current_phase": phase,
+            },
+        )
+    return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
+
+
+@app.post("/invoices/{invoice_id}/confirm-write-off")
+async def confirm_write_off(invoice_id: str):
+    """SME confirms the invoice was genuinely written off. Closes the case."""
+    db = _db()
+    invoice = db.get_invoice(UUID(invoice_id))
+    if invoice:
+        from datetime import UTC, datetime
+        db.update_invoice(
+            UUID(invoice_id),
+            {
+                "status": InvoiceStatus.WRITTEN_OFF.value,
+                "current_phase": InvoicePhase.RESOLVED.value,
+                "resolved_at": datetime.now(tz=UTC).replace(tzinfo=None),
+            },
+        )
+    return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
+
+
+@app.post("/invoices/{invoice_id}/deny-write-off")
+async def deny_write_off(invoice_id: str):
+    """SME confirms the debtor lied — resume from previous phase at stronger tone."""
+    db = _db()
+    invoice = db.get_invoice(UUID(invoice_id))
+    if invoice:
+        # Resume from the phase we were in before the claim, or Phase 3 minimum
+        pre_phase = invoice.get("pre_write_off_phase")
+        phase_order = ["1", "2", "3", "4"]
+        if pre_phase in phase_order:
+            # Resume at pre-claim phase, but floor at Phase 3 (stronger tone)
+            idx = max(phase_order.index(pre_phase), phase_order.index("3"))
+            resume_phase = phase_order[idx]
+        else:
+            resume_phase = InvoicePhase.PHASE_3.value
+        db.update_invoice(
+            UUID(invoice_id),
+            {
+                "status": InvoiceStatus.ACTIVE.value,
+                "current_phase": resume_phase,
+                "write_off_claimed_at": None,
+                "pre_write_off_phase": None,
             },
         )
     return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)

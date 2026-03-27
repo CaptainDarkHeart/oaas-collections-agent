@@ -108,6 +108,46 @@ def alert_human_review(
     )
 
 
+def alert_write_off_claimed(
+    client: ResendClient,
+    owner_email: str,
+    owner_name: str,
+    invoice_number: str,
+    debtor_company: str,
+    reply_excerpt: str,
+    dashboard_url: str = "https://oaas.app/dashboard",
+) -> EmailResult:
+    """Alert the SME that the debtor is claiming the invoice was written off.
+
+    Includes two clear CTAs: confirm the write-off, or tell us the debtor lied.
+    """
+    return send_owner_alert(
+        client=client,
+        owner_email=owner_email,
+        owner_name=owner_name,
+        subject=f"Action required: {debtor_company} claims Invoice #{invoice_number} was written off",
+        body=(
+            f"Hi {owner_name},\n\n"
+            f"{debtor_company} has responded to our collection contact with a claim "
+            f"that Invoice #{invoice_number} was written off or cancelled.\n\n"
+            f'Their reply:\n"{reply_excerpt[:500]}"\n\n'
+            f"We have paused the agent and need you to confirm which of the following "
+            f"is true:\n\n"
+            f"1. YES — I did write this invoice off (or agreed to cancel it)\n"
+            f"   Please log in and click 'Confirm Write-Off' on the invoice. "
+            f"We'll close the case. Note: if collection contact contributed to "
+            f"this resolution, a fee discussion may follow.\n\n"
+            f"2. NO — I never agreed to write this off. The debtor is lying.\n"
+            f"   Please log in and click 'Debtor Lied — Resume' on the invoice. "
+            f"The agent will resume at a stronger tone.\n\n"
+            f"Dashboard: {dashboard_url}\n\n"
+            f"Please respond within 48 hours — the agent will remain paused until "
+            f"you confirm.\n\n"
+            f"— OaaS Collections Agent"
+        ),
+    )
+
+
 def alert_promise_to_pay(
     client: ResendClient,
     owner_email: str,

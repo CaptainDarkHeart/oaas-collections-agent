@@ -43,6 +43,7 @@ class InvoicePhase(str, enum.Enum):
     HUMAN_REVIEW = "human_review"
     RESOLVED = "resolved"
     DISPUTED = "disputed"
+    WRITE_OFF_CLAIMED = "write_off_claimed"
 
 
 class InvoiceStatus(str, enum.Enum):
@@ -80,6 +81,7 @@ class Classification(str, enum.Enum):
     STALL = "stall"
     HOSTILE = "hostile"
     NO_RESPONSE = "no_response"
+    WRITE_OFF_CLAIMED = "write_off_claimed"
 
 
 class ContactSource(str, enum.Enum):
@@ -149,6 +151,8 @@ class Invoice(BaseModel):
     payment_link_url: str | None = None
     payment_link_id: str | None = None
     first_contacted_at: datetime | None = None
+    write_off_claimed_at: datetime | None = None
+    pre_write_off_phase: str | None = None
 
     @property
     def days_overdue(self) -> int:

@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
+from datetime import UTC, datetime
+
 from src.db.models import (
     Classification,
     Database,
@@ -127,6 +129,27 @@ def handle_classification(
             new_phase=InvoicePhase.HUMAN_REVIEW,
             new_status=InvoiceStatus.PAUSED,
             message="HOSTILE — agent paused. Do NOT respond. Human review required.",
+        )
+
+    if classification == Classification.WRITE_OFF_CLAIMED:
+        # Preserve current phase so we can resume from the right place if debtor lied
+        db.update_invoice(
+            invoice_id,
+            {
+                "current_phase": InvoicePhase.WRITE_OFF_CLAIMED.value,
+                "status": InvoiceStatus.PAUSED.value,
+                "write_off_claimed_at": datetime.now(UTC).replace(tzinfo=None),
+                "pre_write_off_phase": current_phase.value,
+            },
+        )
+        return TransitionResult(
+            action="pause",
+            new_phase=InvoicePhase.WRITE_OFF_CLAIMED,
+            new_status=InvoiceStatus.PAUSED,
+            message=(
+                "WRITE-OFF CLAIMED — agent paused. "
+                "SME must confirm or deny before agent re-engages."
+            ),
         )
 
     if classification == Classification.NO_RESPONSE:
