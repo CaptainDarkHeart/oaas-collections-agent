@@ -1645,46 +1645,63 @@ def _landing_html() -> str:
     <title>TactfulPay: Capital Recovered, Relationships Intact</title>
     <link rel="icon" type="image/png" href="/static/logo-square.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
+        /* ── Refined Design System ──
+           Typography: Playfair Display (display) + Inter (body) + JetBrains Mono
+           Scale: 12/14/16/20/24/32 | Spacing: 4/8/12/16/24/32
+           Tokens: primary=#3B82F6, surface=#FFFFFF, text=#111827
+           Brand overrides: --green kept for TactfulPay identity
+        */
         :root {
-            --green: #00B368;
-            --green-hover: #009959;
-            --navy: #1B2A3B;
-            --navy-mid: #2D3E53;
-            --light: #F9FAFB;
-            --text-dark: #202A37;
-            --text-mid: #4B5563;
-            --text-light: #9CA3AF;
-            --white: #ffffff;
+            --green: #16A34A;
+            --green-hover: #15803D;
+            --green-pale: #F0FDF4;
+            --primary: #111827;
+            --surface: #FFFFFF;
+            --surface-2: #F9FAFB;
+            --surface-3: #F3F4F6;
+            --text: #111827;
+            --text-2: #374151;
+            --text-3: #6B7280;
+            --text-4: #9CA3AF;
             --border: #E5E7EB;
-            --red: #EF4444;
+            --border-2: #D1D5DB;
+            --navy: #111827;
+            --navy-mid: #1F2937;
+            --danger: #DC2626;
+            --warning: #D97706;
+            --ff-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+            --ff-body: 'Inter', system-ui, -apple-system, sans-serif;
+            --ff-mono: 'JetBrains Mono', 'Fira Code', monospace;
         }
 
         html { scroll-behavior: smooth; }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--light);
-            color: var(--text-dark);
+            font-family: var(--ff-body);
+            background: var(--surface);
+            color: var(--text);
             -webkit-font-smoothing: antialiased;
+            font-size: 16px;
+            line-height: 1.5;
         }
 
-        /* ── Navbar ── */
+        /* ── Navbar — Refined: clean white, hairline border ── */
         .lp-nav {
             position: sticky;
             top: 0;
             z-index: 100;
-            background: rgba(249, 250, 251, 0.85);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border-bottom: 1px solid var(--border);
-            height: 65px;
+            height: 60px;
             display: flex;
             align-items: center;
-            padding: 0 40px;
+            padding: 0 32px;
             justify-content: space-between;
         }
         .lp-nav-brand {
@@ -1693,378 +1710,454 @@ def _landing_html() -> str:
             gap: 10px;
             text-decoration: none;
         }
-        .lp-nav-brand img { height: 32px; width: auto; }
+        .lp-nav-brand img { height: 28px; width: auto; }
         .lp-nav-brand span {
-            font-size: 16px;
+            font-family: var(--ff-display);
+            font-size: 18px;
             font-weight: 700;
-            color: var(--text-dark);
+            color: var(--text);
             letter-spacing: -0.3px;
         }
         .lp-nav-links {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 2px;
         }
         .lp-nav-links a {
-            color: var(--text-mid);
+            color: var(--text-3);
             text-decoration: none;
             font-size: 14px;
-            font-weight: 500;
-            padding: 7px 14px;
-            border-radius: 6px;
-            transition: color 0.15s, background 0.15s;
+            font-weight: 400;
+            padding: 6px 12px;
+            border-radius: 4px;
+            transition: color 0.12s;
+            letter-spacing: 0.01em;
         }
-        .lp-nav-links a:hover { color: var(--text-dark); background: rgba(0,0,0,0.04); }
-        .lp-nav-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        .lp-nav-links a:hover { color: var(--text); }
+        .lp-nav-actions { display: flex; align-items: center; gap: 8px; }
         .btn-login {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
-            color: var(--text-dark);
+            color: var(--text-2);
+            text-decoration: none;
+            padding: 6px 14px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--surface);
+            transition: border-color 0.12s, color 0.12s;
+            letter-spacing: 0.01em;
+        }
+        .btn-login:hover { border-color: var(--border-2); color: var(--text); }
+        .btn-primary {
+            font-size: 13px;
+            font-weight: 500;
+            color: #fff;
             text-decoration: none;
             padding: 7px 16px;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            background: var(--white);
-            transition: border-color 0.15s, box-shadow 0.15s;
-        }
-        .btn-login:hover { border-color: #9CA3AF; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-        .btn-primary {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--white);
-            text-decoration: none;
-            padding: 8px 18px;
-            border-radius: 6px;
+            border-radius: 4px;
             background: var(--green);
-            transition: background 0.15s;
+            transition: background 0.12s;
+            letter-spacing: 0.01em;
             white-space: nowrap;
         }
         .btn-primary:hover { background: var(--green-hover); }
 
-        /* ── Hero ── */
+        /* ── Hero — Refined: editorial split, serif headline ── */
         .lp-hero {
-            min-height: 90vh;
+            min-height: 88vh;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            align-items: center;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            overflow: hidden;
+        }
+        .lp-hero-left {
+            padding: 80px 64px 80px 64px;
+            max-width: 600px;
+            justify-self: end;
+            width: 100%;
+        }
+        .lp-hero-right {
+            background: var(--navy);
+            height: 100%;
+            min-height: 88vh;
             display: flex;
             align-items: center;
-            background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+            justify-content: center;
+            padding: 64px 48px;
             position: relative;
             overflow: hidden;
         }
-        .lp-hero::before {
+        .lp-hero-right::before {
             content: '';
             position: absolute;
             inset: 0;
-            background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
-            background-size: 28px 28px;
+            background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+            background-size: 24px 24px;
         }
-        .lp-hero-glow1 {
-            position: absolute;
-            top: 33%;
-            right: 25%;
-            width: 500px;
-            height: 500px;
-            border-radius: 50%;
-            background: rgba(0,179,104,0.05);
-            filter: blur(60px);
-        }
-        .lp-hero-glow2 {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 400px;
-            height: 400px;
-            border-radius: 50%;
-            background: rgba(0,179,104,0.05);
-            filter: blur(60px);
-        }
-        .lp-hero-inner {
-            position: relative;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 80px 40px;
-            width: 100%;
-        }
+        .lp-hero-right-inner { position: relative; width: 100%; max-width: 360px; }
         .lp-badge {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 6px 16px;
-            border-radius: 999px;
-            border: 1px solid rgba(0,179,104,0.3);
-            background: rgba(0,179,104,0.1);
-            margin-bottom: 28px;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 2px;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+            margin-bottom: 24px;
         }
         .lp-badge-dot {
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
             background: var(--green);
-            animation: pulse 2s ease-in-out infinite;
+            animation: pulse 2.5s ease-in-out infinite;
         }
         @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.6; transform: scale(0.85); }
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
         }
         .lp-badge span {
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 500;
-            color: var(--green);
-            letter-spacing: 0.2px;
+            color: var(--text-3);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
         }
         .lp-hero h1 {
-            font-size: clamp(40px, 5vw, 64px);
+            font-family: var(--ff-display);
+            font-size: clamp(36px, 4vw, 56px);
             font-weight: 800;
-            color: var(--white);
-            line-height: 1.1;
+            color: var(--text);
+            line-height: 1.08;
             letter-spacing: -1.5px;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
-        .lp-hero h1 .green { color: var(--green); }
+        .lp-hero h1 em {
+            font-style: italic;
+            color: var(--green);
+        }
         .lp-hero-desc {
-            font-size: 17px;
-            color: rgba(255,255,255,0.65);
-            line-height: 1.65;
-            max-width: 520px;
-            margin: 20px 0 36px;
+            font-size: 16px;
+            color: var(--text-3);
+            line-height: 1.7;
+            max-width: 440px;
+            margin: 20px 0 32px;
+            font-weight: 300;
         }
         .lp-hero-cta {
             display: inline-flex;
             align-items: center;
             gap: 8px;
             background: var(--green);
-            color: var(--white);
+            color: #fff;
             text-decoration: none;
-            font-size: 15px;
-            font-weight: 600;
-            padding: 14px 28px;
-            border-radius: 6px;
-            transition: background 0.15s, transform 0.15s;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 12px 24px;
+            border-radius: 4px;
+            transition: background 0.12s;
+            letter-spacing: 0.01em;
         }
-        .lp-hero-cta:hover { background: var(--green-hover); transform: translateY(-1px); }
+        .lp-hero-cta:hover { background: var(--green-hover); }
         .lp-trust {
             display: flex;
-            align-items: center;
-            gap: 24px;
+            flex-direction: column;
+            gap: 10px;
             margin-top: 28px;
-            flex-wrap: wrap;
         }
         .lp-trust-item {
             display: flex;
             align-items: center;
-            gap: 7px;
-            font-size: 13px;
-            color: rgba(255,255,255,0.55);
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-4);
+            letter-spacing: 0.01em;
         }
         .lp-trust-item svg { color: var(--green); flex-shrink: 0; }
 
-        /* ── Section common ── */
-        .lp-section { padding: 96px 40px; }
-        .lp-section-inner { max-width: 1200px; margin: 0 auto; }
-        .lp-light { background: var(--light); }
-        .lp-dark { background: var(--navy); }
-        .lp-white { background: var(--white); }
-
-        .lp-label {
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            color: var(--green);
-            margin-bottom: 14px;
+        /* Dashboard preview card (hero right) */
+        .dash-preview {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            overflow: hidden;
         }
+        .dash-preview-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .dash-preview-title {
+            font-family: var(--ff-mono);
+            font-size: 11px;
+            color: rgba(255,255,255,0.35);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .dash-preview-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+        .dash-preview-row {
+            padding: 14px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .dash-preview-row:last-child { border-bottom: none; }
+        .dash-row-label { font-size: 13px; color: rgba(255,255,255,0.6); font-weight: 300; }
+        .dash-row-label span { font-family: var(--ff-mono); font-size: 11px; color: rgba(255,255,255,0.3); margin-right: 8px; }
+        .dash-badge {
+            font-size: 11px;
+            font-weight: 500;
+            padding: 3px 10px;
+            border-radius: 2px;
+            white-space: nowrap;
+        }
+        .dash-badge.green { background: rgba(22,163,74,0.15); color: #4ADE80; }
+        .dash-badge.amber { background: rgba(217,119,6,0.15); color: #FCD34D; }
+        .dash-badge.red { background: rgba(220,38,38,0.12); color: #FCA5A5; }
+        .dash-preview-footer {
+            padding: 12px 20px;
+            background: rgba(0,0,0,0.15);
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: rgba(255,255,255,0.3);
+        }
+        .dash-preview-footer strong { color: var(--green); font-weight: 500; }
+
+        /* ── Divider / eyebrow ── */
+        .lp-eyebrow {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .lp-eyebrow-line { flex: 1; height: 1px; background: var(--border); }
+        .lp-eyebrow-text {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-4);
+            white-space: nowrap;
+        }
+        .lp-eyebrow-text.green { color: var(--green); }
+
+        /* ── Sections ── */
+        .lp-section { padding: 96px 64px; }
+        .lp-section-inner { max-width: 1200px; margin: 0 auto; }
+        .lp-section-inner.narrow { max-width: 760px; }
+        .lp-light { background: var(--surface-2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+        .lp-dark { background: var(--navy); border-top: none; border-bottom: none; }
+        .lp-white { background: var(--surface); }
+
         .lp-section-title {
-            font-size: clamp(28px, 3.5vw, 44px);
-            font-weight: 800;
-            color: var(--text-dark);
-            letter-spacing: -1px;
+            font-family: var(--ff-display);
+            font-size: clamp(28px, 3vw, 40px);
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.8px;
             line-height: 1.15;
-            max-width: 640px;
+            max-width: 600px;
             margin-bottom: 16px;
         }
-        .lp-dark .lp-section-title { color: var(--white); }
+        .lp-dark .lp-section-title { color: #fff; }
         .lp-section-desc {
             font-size: 16px;
-            color: var(--text-mid);
-            line-height: 1.65;
-            max-width: 600px;
-            margin-bottom: 56px;
+            color: var(--text-3);
+            line-height: 1.7;
+            max-width: 540px;
+            margin-bottom: 48px;
+            font-weight: 300;
         }
-        .lp-dark .lp-section-desc { color: rgba(255,255,255,0.6); }
+        .lp-dark .lp-section-desc { color: rgba(255,255,255,0.5); }
 
-        /* ── Stat cards ── */
-        .lp-stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-        }
+        /* ── Stat cards — Refined: hairline borders, serif numbers ── */
+        .lp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-top: 0; }
         .lp-stat-card {
-            background: var(--white);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 28px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            background: var(--surface);
+            padding: 32px 28px;
         }
-        .lp-stat-icon { margin-bottom: 14px; color: var(--red); }
+        .lp-stat-icon { margin-bottom: 16px; color: var(--danger); }
         .lp-stat-num {
-            font-size: 36px;
+            font-family: var(--ff-display);
+            font-size: 40px;
             font-weight: 800;
-            color: var(--text-dark);
-            letter-spacing: -1px;
+            color: var(--text);
+            letter-spacing: -1.5px;
             line-height: 1;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
-        .lp-stat-desc { font-size: 14px; color: var(--text-mid); }
+        .lp-stat-desc { font-size: 13px; color: var(--text-3); line-height: 1.5; font-weight: 300; }
 
-        /* ── Feature cards ── */
-        .lp-features {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-top: 0;
-        }
+        /* ── Feature cards — Refined: on dark, minimal borders ── */
+        .lp-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; overflow: hidden; }
         .lp-feature-card {
-            background: rgba(45, 62, 83, 0.5);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 12px;
-            padding: 32px;
-            transition: border-color 0.2s, transform 0.2s;
+            background: rgba(255,255,255,0.02);
+            padding: 32px 28px;
+            transition: background 0.15s;
         }
-        .lp-feature-card:hover { border-color: rgba(0,179,104,0.3); transform: translateY(-2px); }
+        .lp-feature-card:hover { background: rgba(255,255,255,0.05); }
         .lp-feature-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 8px;
-            background: rgba(0,179,104,0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 4px;
+            background: rgba(22,163,74,0.12);
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 18px;
+            margin-bottom: 20px;
             color: var(--green);
         }
         .lp-feature-title {
-            font-size: 17px;
-            font-weight: 700;
-            color: var(--white);
+            font-family: var(--ff-display);
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
             margin-bottom: 10px;
+            letter-spacing: -0.3px;
         }
-        .lp-feature-desc { font-size: 14px; color: rgba(255,255,255,0.55); line-height: 1.6; }
+        .lp-feature-desc { font-size: 14px; color: rgba(255,255,255,0.45); line-height: 1.65; font-weight: 300; }
 
-        /* ── Pricing card ── */
-        .lp-pricing-wrap { max-width: 560px; margin: 0 auto; text-align: center; }
-        .lp-pricing-wrap .lp-section-title { max-width: none; margin: 0 auto 14px; }
+        /* ── Pricing — Refined: centered, editorial ── */
+        .lp-pricing-wrap { max-width: 480px; margin: 0 auto; text-align: center; }
+        .lp-pricing-wrap .lp-section-title { max-width: none; margin: 0 auto 12px; }
         .lp-pricing-wrap .lp-section-desc { max-width: none; margin: 0 auto 40px; }
         .lp-price-card {
-            background: var(--white);
+            background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 40px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+            border-radius: 6px;
+            padding: 40px 36px;
+            text-align: left;
         }
-        .lp-price-label { font-size: 13px; font-weight: 600; color: var(--text-mid); margin-bottom: 16px; }
+        .lp-price-label {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-4);
+            margin-bottom: 20px;
+        }
         .lp-price-num {
-            font-size: 72px;
-            font-weight: 800;
+            font-family: var(--ff-display);
+            font-size: 80px;
+            font-weight: 900;
             color: var(--green);
-            letter-spacing: -3px;
+            letter-spacing: -4px;
             line-height: 1;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
-        .lp-price-sub { font-size: 14px; color: var(--text-mid); margin-bottom: 28px; }
-        .lp-checklist { list-style: none; text-align: left; }
+        .lp-price-sub { font-size: 13px; color: var(--text-3); margin-bottom: 32px; font-weight: 300; }
+        .lp-divider { height: 1px; background: var(--border); margin-bottom: 24px; }
+        .lp-checklist { list-style: none; }
         .lp-checklist li {
             display: flex;
             align-items: center;
             gap: 10px;
-            font-size: 15px;
-            color: var(--text-dark);
-            padding: 9px 0;
+            font-size: 14px;
+            color: var(--text-2);
+            padding: 8px 0;
             border-bottom: 1px solid var(--border);
+            font-weight: 300;
         }
         .lp-checklist li:last-child { border-bottom: none; }
         .lp-checklist .check { color: var(--green); flex-shrink: 0; }
-        .lp-checklist .cross { color: var(--red); flex-shrink: 0; text-decoration: line-through; }
-        .lp-checklist li.strike { color: var(--text-light); text-decoration: line-through; }
-        .lp-price-note { font-size: 13px; color: var(--text-mid); margin-top: 20px; font-style: italic; }
+        .lp-checklist .cross { color: var(--text-4); flex-shrink: 0; }
+        .lp-checklist li.strike { color: var(--text-4); text-decoration: line-through; }
+        .lp-price-note {
+            font-size: 12px;
+            color: var(--text-4);
+            margin-top: 20px;
+            font-style: italic;
+            text-align: center;
+        }
 
         /* ── Portal section ── */
-        .lp-portal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
-        .lp-integrations { display: flex; gap: 10px; flex-wrap: wrap; margin: 24px 0 36px; }
+        .lp-portal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+        .lp-integrations { display: flex; gap: 8px; flex-wrap: wrap; margin: 20px 0 32px; }
         .lp-integration-tag {
-            padding: 8px 18px;
+            padding: 5px 14px;
             border: 1px solid var(--border);
-            border-radius: 999px;
-            font-size: 14px;
+            border-radius: 2px;
+            font-size: 12px;
             font-weight: 500;
-            color: var(--text-dark);
-            background: var(--white);
+            color: var(--text-3);
+            background: var(--surface);
+            letter-spacing: 0.02em;
         }
         .lp-portal-cta {
             display: inline-flex;
             align-items: center;
             gap: 8px;
             background: var(--green);
-            color: var(--white);
+            color: #fff;
             text-decoration: none;
-            font-size: 15px;
-            font-weight: 600;
-            padding: 14px 28px;
-            border-radius: 6px;
-            transition: background 0.15s;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 12px 24px;
+            border-radius: 4px;
+            transition: background 0.12s;
         }
         .lp-portal-cta:hover { background: var(--green-hover); }
 
-        /* ── Footer ── */
-        .lp-footer {
-            background: var(--navy);
-            padding: 48px 40px;
-        }
-        .lp-footer-inner {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+        /* ── Footer — Refined: dark, serif brand ── */
+        .lp-footer { background: var(--navy); padding: 56px 64px; }
+        .lp-footer-inner { max-width: 1200px; margin: 0 auto; }
         .lp-footer-top {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            padding-bottom: 32px;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
-            margin-bottom: 24px;
+            padding-bottom: 40px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            margin-bottom: 28px;
         }
         .lp-footer-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-        .lp-footer-brand img { height: 28px; width: auto; opacity: 0.85; }
-        .lp-footer-brand span { font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.85); }
-        .lp-footer-tagline { font-size: 13px; color: rgba(255,255,255,0.4); margin-top: 8px; }
-        .lp-footer-links { display: flex; gap: 24px; }
-        .lp-footer-links a { font-size: 14px; color: rgba(255,255,255,0.5); text-decoration: none; transition: color 0.15s; }
-        .lp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+        .lp-footer-brand img { height: 24px; width: auto; opacity: 0.7; }
+        .lp-footer-brand span {
+            font-family: var(--ff-display);
+            font-size: 17px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.75);
+            letter-spacing: -0.3px;
+        }
+        .lp-footer-tagline { font-size: 12px; color: rgba(255,255,255,0.3); margin-top: 8px; font-weight: 300; letter-spacing: 0.02em; }
+        .lp-footer-links { display: flex; gap: 28px; align-items: center; }
+        .lp-footer-links a { font-size: 13px; color: rgba(255,255,255,0.4); text-decoration: none; transition: color 0.12s; font-weight: 300; }
+        .lp-footer-links a:hover { color: rgba(255,255,255,0.75); }
         .lp-footer-bottom {
             display: flex;
             align-items: center;
             justify-content: space-between;
             font-size: 12px;
-            color: rgba(255,255,255,0.3);
+            color: rgba(255,255,255,0.2);
+            font-weight: 300;
         }
-        .lp-footer-bottom a { color: rgba(255,255,255,0.4); text-decoration: underline; }
+        .lp-footer-bottom a { color: rgba(255,255,255,0.3); text-decoration: underline; }
 
         /* ── Responsive ── */
-        @media (max-width: 900px) {
+        @media (max-width: 1024px) {
+            .lp-hero { grid-template-columns: 1fr; min-height: auto; }
+            .lp-hero-left { justify-self: start; max-width: 100%; padding: 60px 32px 48px; }
+            .lp-hero-right { min-height: 400px; }
+            .lp-portal-grid { grid-template-columns: 1fr; gap: 40px; }
+        }
+        @media (max-width: 768px) {
             .lp-stats { grid-template-columns: 1fr; }
             .lp-features { grid-template-columns: 1fr; }
-            .lp-portal-grid { grid-template-columns: 1fr; gap: 32px; }
-            .lp-footer-top { flex-direction: column; gap: 24px; }
+            .lp-section { padding: 64px 24px; }
+            .lp-footer { padding: 48px 24px; }
+            .lp-footer-top { flex-direction: column; gap: 28px; }
         }
         @media (max-width: 640px) {
             .lp-nav { padding: 0 16px; }
             .lp-nav-links { display: none; }
-            .lp-section { padding: 64px 20px; }
-            .lp-hero-inner { padding: 60px 20px; }
-            .lp-trust { gap: 14px; }
-            .lp-footer { padding: 40px 20px; }
+            .lp-hero-left { padding: 48px 20px 40px; }
+            .lp-hero-right { padding: 40px 20px; }
         }
     </style>
 </head>
@@ -2090,34 +2183,62 @@ def _landing_html() -> str:
 
 <!-- Hero -->
 <section class="lp-hero">
-    <div class="lp-hero-glow1"></div>
-    <div class="lp-hero-glow2"></div>
-    <div class="lp-hero-inner">
+    <div class="lp-hero-left">
         <div class="lp-badge">
             <div class="lp-badge-dot"></div>
             <span>Outcome-as-a-Service</span>
         </div>
         <h1>
             Capital recovered.<br>
-            <span class="green">Relationships intact.</span>
+            <em>Relationships intact.</em>
         </h1>
-        <p class="lp-hero-desc">Stop chasing invoices with generic templates or aggressive collectors. TactfulPay uses behavioral psychology and tactical empathy to secure your payments while preserving your client bonds: all with zero upfront cost.</p>
+        <p class="lp-hero-desc">Stop chasing invoices with generic templates or aggressive collectors. TactfulPay uses behavioural psychology and tactical empathy to secure your payments while preserving your client bonds: all with zero upfront cost.</p>
         <a href="#portal" class="lp-hero-cta">
             Secure My Cash Flow
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </a>
         <div class="lp-trust">
             <div class="lp-trust-item">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 No subscriptions
             </div>
             <div class="lp-trust-item">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 No setup fees
             </div>
             <div class="lp-trust-item">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 10% commission only when you get paid
+            </div>
+        </div>
+    </div>
+    <div class="lp-hero-right">
+        <div class="lp-hero-right-inner">
+            <div class="dash-preview">
+                <div class="dash-preview-header">
+                    <span class="dash-preview-title">Live Recovery Dashboard</span>
+                    <div class="dash-preview-dot"></div>
+                </div>
+                <div class="dash-preview-row">
+                    <span class="dash-row-label"><span>INV-001</span>BigCorp International</span>
+                    <span class="dash-badge green">Phase 2</span>
+                </div>
+                <div class="dash-preview-row">
+                    <span class="dash-row-label"><span>INV-003</span>Global Services Ltd</span>
+                    <span class="dash-badge red">Phase 3</span>
+                </div>
+                <div class="dash-preview-row">
+                    <span class="dash-row-label"><span>INV-006</span>Nordic Digital AS</span>
+                    <span class="dash-badge amber">Phase 2</span>
+                </div>
+                <div class="dash-preview-row">
+                    <span class="dash-row-label"><span>INV-009</span>Pinnacle Group</span>
+                    <span class="dash-badge green">Paid ✓</span>
+                </div>
+                <div class="dash-preview-footer">
+                    <span>4 active recoveries</span>
+                    <strong>£38,200 in pipeline</strong>
+                </div>
             </div>
         </div>
     </div>
@@ -2126,27 +2247,31 @@ def _landing_html() -> str:
 <!-- The Friction -->
 <section class="lp-section lp-light" id="problem">
     <div class="lp-section-inner">
-        <p class="lp-label">The Friction</p>
-        <h2 class="lp-section-title">The &ldquo;Checking In&rdquo; trap is killing your growth.</h2>
-        <p class="lp-section-desc">Small business owners lose hundreds of hours every year to administrative inertia. You are forced to choose between being the &ldquo;annoying&rdquo; vendor or the &ldquo;ignored&rdquo; creditor. Traditional collection agencies are a blunt instrument: they recover the money but destroy the reputation you spent years building.</p>
+        <div class="lp-eyebrow">
+            <div class="lp-eyebrow-line"></div>
+            <span class="lp-eyebrow-text green">The Friction</span>
+            <div class="lp-eyebrow-line"></div>
+        </div>
+        <h2 class="lp-section-title" style="text-align:center;max-width:none;margin-bottom:12px;">The &ldquo;Checking In&rdquo; trap<br>is killing your growth.</h2>
+        <p class="lp-section-desc" style="text-align:center;max-width:560px;margin:0 auto 48px;">Small business owners lose hundreds of hours every year to administrative inertia. You are forced to choose between being the &ldquo;annoying&rdquo; vendor or the &ldquo;ignored&rdquo; creditor. Traditional collection agencies are a blunt instrument: they recover the money but destroy the reputation you spent years building.</p>
         <div class="lp-stats">
             <div class="lp-stat-card">
                 <div class="lp-stat-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 </div>
                 <div class="lp-stat-num">340+</div>
                 <div class="lp-stat-desc">Hours lost yearly to invoice chasing</div>
             </div>
             <div class="lp-stat-card">
                 <div class="lp-stat-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
                 </div>
                 <div class="lp-stat-num">68%</div>
                 <div class="lp-stat-desc">Of small businesses face late payments</div>
             </div>
             <div class="lp-stat-card">
                 <div class="lp-stat-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 </div>
                 <div class="lp-stat-num">1 in 4</div>
                 <div class="lp-stat-desc">Client relationships damaged by collections</div>
@@ -2158,27 +2283,31 @@ def _landing_html() -> str:
 <!-- The Tact Engine -->
 <section class="lp-section lp-dark" id="approach">
     <div class="lp-section-inner">
-        <p class="lp-label">The Tact Engine</p>
-        <h2 class="lp-section-title">Sophisticated negotiation: at scale.</h2>
-        <p class="lp-section-desc">Our autonomous agents are trained in the science of bilateral negotiation and empathy-based communication. We do not use threats: we use psychology to move your invoice to the top of the pile.</p>
+        <div class="lp-eyebrow" style="margin-bottom:20px;">
+            <div class="lp-eyebrow-line" style="background:rgba(255,255,255,0.08);"></div>
+            <span class="lp-eyebrow-text" style="color:var(--green);">The Tact Engine</span>
+            <div class="lp-eyebrow-line" style="background:rgba(255,255,255,0.08);"></div>
+        </div>
+        <h2 class="lp-section-title" style="text-align:center;max-width:none;margin-bottom:12px;">Sophisticated negotiation: at scale.</h2>
+        <p class="lp-section-desc" style="text-align:center;max-width:560px;margin:0 auto 48px;">Our autonomous agents are trained in the science of bilateral negotiation and empathy-based communication. We do not use threats: we use psychology to move your invoice to the top of the pile.</p>
         <div class="lp-features">
             <div class="lp-feature-card">
                 <div class="lp-feature-icon">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </div>
                 <div class="lp-feature-title">Tactical Empathy</div>
                 <div class="lp-feature-desc">We identify the client&rsquo;s internal hurdles and solve them collaboratively. No threats. No ultimatums. Just skilled, human negotiation.</div>
             </div>
             <div class="lp-feature-card">
                 <div class="lp-feature-icon">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                 </div>
                 <div class="lp-feature-title">Strategic Cadence</div>
                 <div class="lp-feature-desc">A multi-channel sequence across email and AI-voice that builds professional pressure without hostility. Every touchpoint is deliberate.</div>
             </div>
             <div class="lp-feature-card">
                 <div class="lp-feature-icon">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 </div>
                 <div class="lp-feature-title">The Accountability Loop</div>
                 <div class="lp-feature-desc">We secure firm payment dates and follow up with precision. Commitments are tracked, documented, and enforced through structured follow-through.</div>
@@ -2188,23 +2317,28 @@ def _landing_html() -> str:
 </section>
 
 <!-- OaaS Pricing -->
-<section class="lp-section lp-light" id="pricing">
-    <div class="lp-section-inner">
+<section class="lp-section lp-white" id="pricing">
+    <div class="lp-section-inner narrow">
         <div class="lp-pricing-wrap">
-            <p class="lp-label">Outcome-as-a-Service</p>
+            <div class="lp-eyebrow" style="justify-content:center;margin-bottom:20px;">
+                <div class="lp-eyebrow-line"></div>
+                <span class="lp-eyebrow-text green">Outcome-as-a-Service</span>
+                <div class="lp-eyebrow-line"></div>
+            </div>
             <h2 class="lp-section-title">We are your outsourced recovery department.</h2>
             <p class="lp-section-desc">TactfulPay is not another SaaS tool for you to manage. It is a results-driven service. We do not charge for seats or access: we charge for outcomes.</p>
             <div class="lp-price-card">
                 <div class="lp-price-label">Results-Based Pricing</div>
                 <div class="lp-price-num">10%</div>
                 <div class="lp-price-sub">of successfully recovered payments</div>
+                <div class="lp-divider"></div>
                 <ul class="lp-checklist">
-                    <li><svg class="check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Zero upfront cost</li>
-                    <li><svg class="check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> No monthly subscriptions</li>
-                    <li><svg class="check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> No setup or onboarding fees</li>
-                    <li><svg class="check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Multi-channel recovery campaigns</li>
-                    <li><svg class="check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Dedicated autonomous agent assigned to your account</li>
-                    <li class="strike"><svg class="cross" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Charges for unsuccessful recoveries</li>
+                    <li><svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Zero upfront cost</li>
+                    <li><svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> No monthly subscriptions</li>
+                    <li><svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> No setup or onboarding fees</li>
+                    <li><svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Multi-channel recovery campaigns</li>
+                    <li><svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Dedicated autonomous agent assigned to your account</li>
+                    <li class="strike"><svg class="cross" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Charges for unsuccessful recoveries</li>
                 </ul>
                 <p class="lp-price-note">If our autonomous agents do not collect: you pay nothing.</p>
             </div>
@@ -2217,9 +2351,13 @@ def _landing_html() -> str:
     <div class="lp-section-inner">
         <div class="lp-portal-grid">
             <div>
-                <p class="lp-label">The Portal</p>
+                <div class="lp-eyebrow" style="margin-bottom:20px;">
+                    <div class="lp-eyebrow-line"></div>
+                    <span class="lp-eyebrow-text green">The Portal</span>
+                    <div class="lp-eyebrow-line"></div>
+                </div>
                 <h2 class="lp-section-title">From overdue to paid in sixty seconds.</h2>
-                <p class="lp-section-desc" style="margin-bottom: 0;">You do not need to spend weeks on a complex ERP integration. Simply export your outstanding invoices from Xero, QuickBooks, or your custom ledger and upload the CSV. Our autonomous agents deploy instantly to begin the reconciliation process.</p>
+                <p class="lp-section-desc" style="margin-bottom:0;font-weight:300;">You do not need to spend weeks on a complex ERP integration. Simply export your outstanding invoices from Xero, QuickBooks, or your custom ledger and upload the CSV. Our autonomous agents deploy instantly to begin the reconciliation process.</p>
                 <div class="lp-integrations">
                     <span class="lp-integration-tag">Xero</span>
                     <span class="lp-integration-tag">QuickBooks</span>
@@ -2228,29 +2366,41 @@ def _landing_html() -> str:
                 </div>
                 <a href="/onboard" class="lp-portal-cta">
                     Secure My Cash Flow
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                 </a>
             </div>
-            <div style="display:flex;align-items:center;justify-content:center;">
-                <div style="background:linear-gradient(135deg,var(--navy),var(--navy-mid));border-radius:16px;padding:40px 36px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
-                    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--green);margin-bottom:20px;">Live Recovery Dashboard</div>
-                    <div style="display:flex;flex-direction:column;gap:12px;">
-                        <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
-                            <span style="font-size:14px;color:rgba(255,255,255,0.7);">INV-2025-001 &bull; BigCorp</span>
-                            <span style="font-size:12px;background:rgba(0,179,104,0.15);color:var(--green);padding:3px 10px;border-radius:999px;font-weight:600;">Phase 2</span>
+            <div>
+                <div style="background:var(--navy);border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.06);">
+                    <div style="padding:20px 24px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;">
+                        <span style="font-family:var(--ff-mono);font-size:11px;color:rgba(255,255,255,0.3);letter-spacing:0.08em;text-transform:uppercase;">Recovery Pipeline</span>
+                        <span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;"></span>
+                    </div>
+                    <div style="padding:8px 0;">
+                        <div style="padding:14px 24px;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <div style="font-family:var(--ff-mono);font-size:10px;color:rgba(255,255,255,0.25);margin-bottom:3px;">INV-2025-001</div>
+                                <div style="font-size:13px;color:rgba(255,255,255,0.65);font-weight:300;">BigCorp International</div>
+                            </div>
+                            <span style="font-size:11px;background:rgba(22,163,74,0.12);color:#4ADE80;padding:3px 10px;border-radius:2px;font-weight:500;">Phase 2</span>
                         </div>
-                        <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
-                            <span style="font-size:14px;color:rgba(255,255,255,0.7);">INV-2025-003 &bull; GlobalSvc</span>
-                            <span style="font-size:12px;background:rgba(239,68,68,0.15);color:#F87171;padding:3px 10px;border-radius:999px;font-weight:600;">Phase 3</span>
+                        <div style="padding:14px 24px;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <div style="font-family:var(--ff-mono);font-size:10px;color:rgba(255,255,255,0.25);margin-bottom:3px;">INV-2025-003</div>
+                                <div style="font-size:13px;color:rgba(255,255,255,0.65);font-weight:300;">Global Services Ltd</div>
+                            </div>
+                            <span style="font-size:11px;background:rgba(220,38,38,0.12);color:#FCA5A5;padding:3px 10px;border-radius:2px;font-weight:500;">Phase 3</span>
                         </div>
-                        <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
-                            <span style="font-size:14px;color:rgba(255,255,255,0.7);">INV-2025-005 &bull; Pinnacle</span>
-                            <span style="font-size:12px;background:rgba(0,179,104,0.15);color:var(--green);padding:3px 10px;border-radius:999px;font-weight:600;">Paid ✓</span>
+                        <div style="padding:14px 24px;display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <div style="font-family:var(--ff-mono);font-size:10px;color:rgba(255,255,255,0.25);margin-bottom:3px;">INV-2025-009</div>
+                                <div style="font-size:13px;color:rgba(255,255,255,0.65);font-weight:300;">Pinnacle Group</div>
+                            </div>
+                            <span style="font-size:11px;background:rgba(22,163,74,0.12);color:#4ADE80;padding:3px 10px;border-radius:2px;font-weight:500;">Paid ✓</span>
                         </div>
                     </div>
-                    <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;font-size:13px;color:rgba(255,255,255,0.4);">
+                    <div style="padding:12px 24px;background:rgba(0,0,0,0.2);display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,0.25);font-weight:300;">
                         <span>3 active recoveries</span>
-                        <span style="color:var(--green);">£21,200 in pipeline</span>
+                        <span style="color:var(--green);font-weight:400;">£21,200 in pipeline</span>
                     </div>
                 </div>
             </div>
@@ -2278,7 +2428,7 @@ def _landing_html() -> str:
         </div>
         <div class="lp-footer-bottom">
             <span>&copy; 2026 TactfulPay. All rights reserved.</span>
-            <span>Our communication methodology draws from established negotiation principles, including those outlined in Chris Voss&rsquo;s &ldquo;<a href="#">Never Split the Difference</a>&rdquo;.</span>
+            <span>Communication methodology draws from principles outlined in Chris Voss&rsquo;s &ldquo;<a href="#">Never Split the Difference</a>&rdquo;.</span>
         </div>
     </div>
 </footer>
