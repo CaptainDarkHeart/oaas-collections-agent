@@ -1684,8 +1684,9 @@ def _landing_html() -> str:
             height: 65px;
             display: flex;
             align-items: center;
-            padding: 0 56px 0 40px;
+            padding: 0 48px;
             justify-content: space-between;
+            max-width: 100%;
         }
         .lp-nav-brand {
             display: flex;
@@ -1783,9 +1784,9 @@ def _landing_html() -> str:
         }
         .lp-hero-inner {
             position: relative;
-            max-width: 1200px;
+            max-width: 1320px;
             margin: 0 auto;
-            padding: 80px 40px;
+            padding: 100px 48px;
             width: 100%;
         }
         .lp-badge {
@@ -1816,7 +1817,7 @@ def _landing_html() -> str:
             letter-spacing: 0.2px;
         }
         .lp-hero h1 {
-            font-size: clamp(40px, 5vw, 64px);
+            font-size: clamp(40px, 5vw, 72px);
             font-weight: 800;
             color: var(--white);
             line-height: 1.1;
@@ -1862,8 +1863,8 @@ def _landing_html() -> str:
         .lp-trust-item svg { color: var(--green); flex-shrink: 0; }
 
         /* ── Section common ── */
-        .lp-section { padding: 96px 40px; }
-        .lp-section-inner { max-width: 1200px; margin: 0 auto; }
+        .lp-section { padding: 96px 48px; }
+        .lp-section-inner { max-width: 1320px; margin: 0 auto; }
         .lp-light { background: var(--light); }
         .lp-dark { background: var(--navy); }
         .lp-white { background: var(--white); }
@@ -1877,7 +1878,7 @@ def _landing_html() -> str:
             margin-bottom: 14px;
         }
         .lp-section-title {
-            font-size: clamp(28px, 3.5vw, 44px);
+            font-size: clamp(28px, 3vw, 48px);
             font-weight: 800;
             color: var(--text-dark);
             letter-spacing: -1px;
@@ -1955,7 +1956,7 @@ def _landing_html() -> str:
         .lp-feature-desc { font-size: 14px; color: rgba(255,255,255,0.55); line-height: 1.6; }
 
         /* ── Pricing card ── */
-        .lp-pricing-wrap { max-width: 560px; margin: 0 auto; text-align: center; }
+        .lp-pricing-wrap { max-width: 600px; margin: 0 auto; text-align: center; }
         .lp-pricing-wrap .lp-section-title { max-width: none; margin: 0 auto 14px; }
         .lp-pricing-wrap .lp-section-desc { max-width: none; margin: 0 auto 40px; }
         .lp-price-card {
@@ -2024,7 +2025,7 @@ def _landing_html() -> str:
             padding: 48px 40px;
         }
         .lp-footer-inner {
-            max-width: 1200px;
+            max-width: 1320px;
             margin: 0 auto;
         }
         .lp-footer-top {
@@ -2050,6 +2051,20 @@ def _landing_html() -> str:
             color: rgba(255,255,255,0.3);
         }
         .lp-footer-bottom a { color: rgba(255,255,255,0.4); text-decoration: underline; }
+
+        /* ── 1400px target ── */
+        @media (min-width: 1400px) {
+            .lp-hero-inner { padding: 120px 48px; }
+            .lp-section { padding: 112px 48px; }
+            .lp-hero-desc { font-size: 18px; max-width: 580px; }
+            .lp-section-desc { font-size: 17px; }
+            .lp-stat-card { padding: 36px 32px; }
+            .lp-stat-num { font-size: 44px; }
+            .lp-feature-card { padding: 40px 36px; }
+            .lp-portal-grid { gap: 80px; }
+            .lp-price-card { padding: 48px; }
+            .lp-footer { padding: 64px 48px; }
+        }
 
         /* ── Responsive ── */
         @media (max-width: 900px) {
