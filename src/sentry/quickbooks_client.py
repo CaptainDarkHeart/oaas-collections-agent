@@ -134,6 +134,21 @@ class QuickBooksClient:
         data = self._request("GET", f"/customer/{customer_id}")
         return data.get("Customer", {})
 
+    def get_invoice_status(self, invoice_id: str) -> tuple[str | None, bool]:
+        """Fetch the status of a single invoice by its QuickBooks ID.
+
+        Returns a tuple of (status_string, is_paid) where is_paid is True
+        if Balance == 0. Returns (None, False) on failure.
+        """
+        try:
+            data = self._request("GET", f"/invoice/{invoice_id}")
+            invoice = data.get("Invoice", {})
+            balance = invoice.get("Balance", -1)
+            return invoice.get("Id"), float(balance) == 0.0
+        except QuickBooksAPIError as e:
+            logger.warning("Could not fetch QuickBooks invoice %s: %s", invoice_id, e)
+            return None, False
+
     def create_payment(
         self,
         invoice_external_id: str,

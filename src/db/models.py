@@ -148,6 +148,7 @@ class Invoice(BaseModel):
     fee_amount: Decimal | None = None
     payment_link_url: str | None = None
     payment_link_id: str | None = None
+    first_contacted_at: datetime | None = None
 
     @property
     def days_overdue(self) -> int:
@@ -377,6 +378,17 @@ class Database:
 
     def create_fee(self, fee: Fee) -> dict:
         return self.client.table("fees").insert(self._serialize(fee)).execute().data[0]
+
+    def get_fee_by_invoice(self, invoice_id: UUID) -> dict | None:
+        """Get fee record for an invoice, if one exists."""
+        resp = (
+            self.client.table("fees")
+            .select("*")
+            .eq("invoice_id", str(invoice_id))
+            .limit(1)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
 
     def list_all_fees(self) -> list[dict]:
         """List all fee records."""

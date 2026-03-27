@@ -749,8 +749,8 @@ class TestPaymentLinkCaching:
 
         assert result is True
         payment_links.create_invoice_payment_link.assert_called_once()
-        # Verify the link was persisted to DB
-        db.update_invoice.assert_called_once()
-        update_call = db.update_invoice.call_args
-        assert update_call[0][1]["payment_link_url"] == "https://pay.stripe.com/test_link"
-        assert update_call[0][1]["payment_link_id"] == "plink_test"
+        # Verify the link was persisted to DB (first call is payment link, second is first_contacted_at)
+        assert db.update_invoice.call_count >= 1
+        first_update = db.update_invoice.call_args_list[0]
+        assert first_update[0][1]["payment_link_url"] == "https://pay.stripe.com/test_link"
+        assert first_update[0][1]["payment_link_id"] == "plink_test"

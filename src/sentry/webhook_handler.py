@@ -242,17 +242,21 @@ def _handle_debtor_payment(event: dict) -> None:
         },
     )
 
-    # Calculate fee: 10% for invoices over threshold, else flat fee
-    if amount > Decimal(str(settings.fee_percentage_threshold)):
-        fee_amount = amount * Decimal(str(settings.fee_percentage)) / 100
+    # Get invoice to find sme_id and original amount for fee calculation
+    invoice_data = db.get_invoice(invoice_id)
+    sme_id = UUID(invoice_data["sme_id"]) if invoice_data else None
+
+    # Calculate fee on the ORIGINAL invoice amount, not the Stripe payment amount.
+    # This prevents the exploit where a debtor pays just under the threshold via
+    # Stripe and settles the remainder outside the system.
+    original_amount = Decimal(str(invoice_data["amount"])) if invoice_data else amount
+
+    if original_amount > Decimal(str(settings.fee_percentage_threshold)):
+        fee_amount = original_amount * Decimal(str(settings.fee_percentage)) / 100
         fee_type = FeeType.PERCENTAGE
     else:
         fee_amount = Decimal(str(settings.fee_flat_amount))
         fee_type = FeeType.FLAT
-
-    # Get invoice to find sme_id
-    invoice_data = db.get_invoice(invoice_id)
-    sme_id = UUID(invoice_data["sme_id"]) if invoice_data else None
 
     if sme_id:
         fee = Fee(

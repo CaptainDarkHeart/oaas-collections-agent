@@ -285,6 +285,13 @@ def _process_invoice(
     )
     db.create_interaction(interaction)
 
+    # Track first contact for fee attribution on external payments
+    if not invoice.get("first_contacted_at"):
+        db.update_invoice(
+            invoice_id,
+            {"first_contacted_at": datetime.now(tz=UTC).replace(tzinfo=None)},
+        )
+
     logger.info(
         "Sent %s email for invoice %s (Phase %s, #%d in phase)",
         message_type.value,

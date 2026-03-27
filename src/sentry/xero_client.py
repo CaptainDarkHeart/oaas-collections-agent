@@ -91,6 +91,22 @@ class XeroClient:
         )
         return invoices
 
+    def get_invoice_status(self, invoice_id: str) -> str | None:
+        """Fetch the status of a single invoice by its Xero InvoiceID.
+
+        Returns the Xero status string (e.g. "AUTHORISED", "PAID", "VOIDED")
+        or None if the invoice could not be fetched.
+        """
+        try:
+            data = self._request("GET", f"/Invoices/{invoice_id}")
+            invoices = data.get("Invoices", [])
+            if invoices:
+                return invoices[0].get("Status")
+            return None
+        except XeroAPIError as e:
+            logger.warning("Could not fetch Xero invoice %s: %s", invoice_id, e)
+            return None
+
     def create_payment(
         self,
         invoice_external_id: str,

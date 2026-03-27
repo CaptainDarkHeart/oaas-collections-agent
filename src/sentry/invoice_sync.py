@@ -15,6 +15,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+from src.billing.fee_calculator import calculate_fee
 from src.config import settings
 from src.db.models import (
     AccountingPlatform,
@@ -182,7 +183,12 @@ def _check_paid_externally(
     company_id: str,
     existing_invoices: list[dict],
 ) -> None:
-    """Check if any active invoices have been paid in the accounting software."""
+    """Check if any active invoices have been paid in the accounting software.
+
+    When a payment is detected externally, this also creates a Fee record
+    if the invoice was contacted by our agent (has first_contacted_at set),
+    ensuring we capture revenue regardless of how the debtor paid.
+    """
     if not existing_invoices:
         return
 
@@ -196,17 +202,23 @@ def _check_paid_externally(
 
     for inv in existing_invoices:
         if inv["invoice_number"] in paid_numbers:
+            invoice_id = UUID(inv["id"])
             logger.info(
                 "Invoice %s marked as paid externally — resolving",
                 inv["invoice_number"],
             )
             db.update_invoice(
-                UUID(inv["id"]),
+                invoice_id,
                 {
                     "status": InvoiceStatus.PAID,
                     "current_phase": InvoicePhase.RESOLVED,
+                    "resolved_at": datetime.now(tz=UTC).replace(tzinfo=None),
                 },
             )
+
+            # Create fee if we contacted this debtor (attribution)
+            _create_fee_if_attributed(db, inv, sme_id, invoice_id)
+
             slack_webhook.send_alert(
                 title="Invoice Paid Externally",
                 message=(
@@ -217,6 +229,47 @@ def _check_paid_externally(
                 debtor_company=inv["debtor_company"],
                 severity="info",
             )
+
+
+def _create_fee_if_attributed(
+    db: Database,
+    invoice_data: dict,
+    sme_id: UUID,
+    invoice_id: UUID,
+) -> None:
+    """Create a fee record if the invoice was contacted by our agent.
+
+    Attribution rule: if first_contacted_at is set, we contributed to recovery.
+    Skips if a fee already exists for this invoice.
+    """
+    first_contacted = invoice_data.get("first_contacted_at")
+    if not first_contacted:
+        logger.info(
+            "Invoice %s paid externally but never contacted — no fee",
+            invoice_data.get("invoice_number", invoice_id),
+        )
+        return
+
+    # Don't double-create fees
+    existing_fee = db.get_fee_by_invoice(invoice_id)
+    if existing_fee:
+        logger.info(
+            "Invoice %s already has a fee record — skipping",
+            invoice_data.get("invoice_number", invoice_id),
+        )
+        return
+
+    # Fee is calculated on the original invoice amount
+    original_amount = Decimal(str(invoice_data["amount"]))
+    fee = calculate_fee(original_amount, sme_id, invoice_id)
+    db.create_fee(fee)
+
+    logger.info(
+        "Created %s fee of %s for externally-paid invoice %s",
+        fee.fee_type.value,
+        fee.fee_amount,
+        invoice_data.get("invoice_number", invoice_id),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -395,6 +448,136 @@ def upsert_normalised_invoices(
     return new_count
 
 
+def check_paid_externally_oauth(
+    db: Database,
+    sme_id: UUID,
+    connection: dict,
+) -> int:
+    """Check if any tracked invoices have been paid via OAuth platform (Xero/QB).
+
+    For each active invoice with an external_id, queries the platform to check
+    if it has been paid. If paid, resolves the invoice and creates a fee.
+
+    Returns the number of invoices found to be paid.
+    """
+    platform = AccountingPlatform(connection["platform"])
+    active_invoices = db.list_active_invoices(sme_id=sme_id)
+
+    # Only check invoices that have an external_id (came from this platform)
+    trackable = [inv for inv in active_invoices if inv.get("external_id")]
+    if not trackable:
+        return 0
+
+    # Decrypt token
+    expires_at_raw = connection["token_expires_at"]
+    if isinstance(expires_at_raw, str):
+        token_expires_at = datetime.fromisoformat(expires_at_raw)
+    else:
+        token_expires_at = expires_at_raw
+    if token_expires_at.tzinfo is not None:
+        token_expires_at = token_expires_at.replace(tzinfo=None)
+
+    now = datetime.now(tz=UTC).replace(tzinfo=None)
+    if now >= token_expires_at:
+        # Token expired — skip. The main sync will refresh it next run.
+        logger.info("Skipping OAuth paid check — token expired for connection %s", connection["id"])
+        return 0
+
+    access_token = decrypt_token(connection["access_token"])
+    paid_count = 0
+
+    if platform == AccountingPlatform.XERO:
+        tenant_id = connection.get("tenant_id", "")
+        client = XeroClient(access_token=access_token, tenant_id=tenant_id)
+        for inv in trackable:
+            status = client.get_invoice_status(inv["external_id"])
+            if status == "PAID":
+                _resolve_externally_paid(db, inv, sme_id)
+                paid_count += 1
+
+    elif platform == AccountingPlatform.QUICKBOOKS:
+        tenant_id = connection.get("tenant_id", "")
+        client = QuickBooksClient(
+            access_token=access_token,
+            realm_id=tenant_id,
+            sandbox=settings.quickbooks_sandbox,
+        )
+        for inv in trackable:
+            _, is_paid = client.get_invoice_status(inv["external_id"])
+            if is_paid:
+                _resolve_externally_paid(db, inv, sme_id)
+                paid_count += 1
+
+    if paid_count:
+        logger.info(
+            "Found %d externally-paid invoices via %s for SME %s",
+            paid_count, platform.value, sme_id,
+        )
+
+    return paid_count
+
+
+def _resolve_externally_paid(db: Database, inv: dict, sme_id: UUID) -> None:
+    """Mark an invoice as paid externally and create a fee if attributed."""
+    invoice_id = UUID(inv["id"])
+    logger.info(
+        "Invoice %s paid externally (OAuth) — resolving", inv["invoice_number"]
+    )
+    db.update_invoice(
+        invoice_id,
+        {
+            "status": InvoiceStatus.PAID,
+            "current_phase": InvoicePhase.RESOLVED,
+            "resolved_at": datetime.now(tz=UTC).replace(tzinfo=None),
+        },
+    )
+    _create_fee_if_attributed(db, inv, sme_id, invoice_id)
+    slack_webhook.send_alert(
+        title="Invoice Paid Externally",
+        message=(
+            f"Invoice {inv['invoice_number']} ({inv['debtor_company']}) "
+            f"was paid in the accounting software — resolved"
+        ),
+        invoice_number=inv["invoice_number"],
+        debtor_company=inv.get("debtor_company", ""),
+        severity="info",
+    )
+
+
+def _check_disconnects(db: Database, sme_id: UUID, sme_name: str) -> None:
+    """Alert if an SME has active invoices but no active accounting connection.
+
+    This catches the exploit where an SME disconnects their integration after
+    collection begins, to prevent us from detecting external payment.
+    """
+    connections = db.list_connections(sme_id)
+    has_active_connection = any(
+        c.get("status") == ConnectionStatus.ACTIVE.value for c in connections
+    )
+
+    if has_active_connection:
+        return
+
+    active_invoices = db.list_active_invoices(sme_id=sme_id)
+    contacted = [inv for inv in active_invoices if inv.get("first_contacted_at")]
+
+    if contacted:
+        logger.warning(
+            "SME %s has %d contacted invoices but no active accounting connection",
+            sme_name, len(contacted),
+        )
+        invoice_numbers = ", ".join(inv["invoice_number"] for inv in contacted[:5])
+        slack_webhook.send_alert(
+            title="Accounting Disconnected — Active Invoices",
+            message=(
+                f"{sme_name} has disconnected their accounting integration "
+                f"while {len(contacted)} contacted invoice(s) are still active: "
+                f"{invoice_numbers}. Payment detection is impaired."
+            ),
+            severity="warning",
+        )
+
+
 def run_full_sync(db: Database | None = None) -> dict:
     """Run a complete invoice sync across all providers.
 
@@ -420,6 +603,8 @@ def run_full_sync(db: Database | None = None) -> dict:
         "codat_result": None,
         "connections_synced": 0,
         "invoices_created": 0,
+        "externally_paid": 0,
+        "disconnect_warnings": 0,
         "errors": [],
     }
 
@@ -492,12 +677,32 @@ def run_full_sync(db: Database | None = None) -> dict:
                 logger.exception(error_msg)
                 summary["errors"].append(error_msg)
 
+        # --- Check for externally paid invoices via OAuth ---
+        for conn in active_connections:
+            try:
+                paid_count = check_paid_externally_oauth(db, sme_id, conn)
+                summary["externally_paid"] += paid_count
+            except Exception as e:
+                logger.warning(
+                    "Failed OAuth paid check for %s (%s): %s",
+                    sme_name, conn.get("platform", "?"), e,
+                )
+
+        # --- Check for disconnected integrations with active invoices ---
+        try:
+            _check_disconnects(db, sme_id, sme_name)
+        except Exception:
+            logger.warning(
+                "Failed disconnect check for %s", sme_name, exc_info=True,
+            )
+
     logger.info(
         "Full sync complete: %d SMEs processed, %d connections synced, "
-        "%d new invoices created, %d errors",
+        "%d new invoices created, %d externally paid, %d errors",
         summary["smes_processed"],
         summary["connections_synced"],
         summary["invoices_created"],
+        summary["externally_paid"],
         len(summary["errors"]),
     )
 
