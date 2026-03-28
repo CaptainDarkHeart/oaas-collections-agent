@@ -261,7 +261,7 @@ class Database:
     """Thin wrapper around the Supabase client for CRUD operations."""
 
     def __init__(self, jwt_token: str | None = None) -> None:
-        from supabase import create_client, ClientOptions
+        from supabase import ClientOptions, create_client
 
         if jwt_token:
             options = ClientOptions(headers={"Authorization": f"Bearer {jwt_token}"})

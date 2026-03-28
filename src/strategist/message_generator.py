@@ -17,7 +17,7 @@ import anthropic
 
 from src.config import settings
 from src.db.models import InvoicePhase
-from src.strategist.constraints import PHASE_1_BANNED_WORDS, PHASE_MAX_WORDS
+from src.strategist.constraints import PHASE_1_BANNED_WORDS, PHASE_MAX_WORDS, DiscountOffer
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
@@ -53,6 +53,21 @@ class GeneratedMessage:
     is_reply_to_sent: bool = False
 
 
+def _check_discounts(body: str, ctx: MessageContext) -> None:
+    """Check if the generated message offers unauthorized discounts."""
+    percentages = re.findall(r'(\d+(?:\.\d+)?)%', body)
+    for p in percentages:
+        val = float(p)
+        phase_num = int(ctx.phase.value) if ctx.phase.value.isdigit() else 0
+        offer = DiscountOffer(
+            percentage=val,
+            payment_window_hours=24,
+            phase=phase_num,
+            sme_authorised=ctx.discount_authorised
+        )
+        if not offer.is_valid():
+            raise ValueError(f"Constraint Violation: Unauthorized discount of {val}% offered in phase {ctx.phase.value}")
+
 def generate_message(ctx: MessageContext) -> GeneratedMessage:
     """Generate an outbound email for the given phase and context.
 
@@ -68,23 +83,34 @@ def generate_message(ctx: MessageContext) -> GeneratedMessage:
 
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=500,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
+    max_retries = 3
+    last_error = None
 
-    if not message.content or not hasattr(message.content[0], "text"):
-        raise RuntimeError("Empty response from message generation LLM")
+    for attempt in range(max_retries):
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=500,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
 
-    raw = message.content[0].text.strip()
-    subject, body = _parse_email(raw, ctx)
+        if not message.content or not hasattr(message.content[0], "text"):
+            raise RuntimeError("Empty response from message generation LLM")
 
-    # Post generation guardrail
-    body = _enforce_banned_words(body, ctx.phase)
+        raw = message.content[0].text.strip()
+        subject, body = _parse_email(raw, ctx)
 
-    return GeneratedMessage(subject=subject, body=body)
+        try:
+            # Post generation guardrail
+            body = _enforce_banned_words(body, ctx.phase)
+            _check_discounts(body, ctx)
+            return GeneratedMessage(subject=subject, body=body)
+        except ValueError as e:
+            last_error = e
+            # add the violation feedback back to the prompt
+            user_prompt += f"\n\nYour previous attempt failed with constraint violation: {e}. Please correct this."
+
+    raise RuntimeError(f"Failed to generate valid message after {max_retries} attempts. Last error: {last_error}")
 
 
 def _load_phase_prompt(ctx: MessageContext) -> str:
@@ -207,7 +233,9 @@ def _enforce_banned_words(body: str, phase: InvoicePhase) -> str:
             if banned in lower_body:
                 replacement = replacements.get(banned, "outstanding")
                 body = re.sub(r"\b" + re.escape(banned) + r"\b", replacement, body, flags=re.IGNORECASE)
-                
-    # Strip semicolons and hyphens globally
-    body = re.sub(r"[;\-]", "", body)
+
+    # Reject semicolons and hyphens completely
+    if re.search(r"[;\-]", body):
+        raise ValueError("Constraint Violation: Semicolons and hyphens are forbidden")
+
     return body

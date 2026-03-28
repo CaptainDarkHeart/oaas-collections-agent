@@ -20,8 +20,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
-from datetime import UTC, datetime
-
 from src.db.models import (
     Classification,
     Database,

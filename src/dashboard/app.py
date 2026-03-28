@@ -20,8 +20,8 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from fastapi import Depends, FastAPI, File, Form, Query, Request, UploadFile, Response
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi import Depends, FastAPI, File, Form, Query, Request, Response, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 
@@ -74,14 +74,25 @@ def _require_auth(
         )
 
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(
     title="OaaS Collections Agent",
     version="0.1.0",
     dependencies=[Depends(_require_auth)],
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 import contextvars
+
 _request_ctx: contextvars.ContextVar[Request | None] = contextvars.ContextVar("request", default=None)
 
 @app.middleware("http")
@@ -120,22 +131,46 @@ async def login_page():
     """
     return HTMLResponse(html)
 
+from fastapi import HTTPException
+from supabase import create_client
+
+
 @app.post("/api/auth/login", dependencies=[])
 async def auth_login(response: Response, email: str = Form(...), password: str = Form(...)):
-    """Placeholder Supabase Auth login endpoint."""
-    # This is a placeholder that normally would call supabase.auth.sign_in_with_password()
-    # For now, we simulate a successful login if the password matches the global one or just set a dummy token
-    dummy_token = f"dummy_jwt_for_{email}"
-    
-    redirect = RedirectResponse(url="/dashboard", status_code=303)
-    redirect.set_cookie(
-        key="access_token",
-        value=dummy_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
+    """Supabase Auth login endpoint."""
+    if DEMO_MODE:
+        dummy_token = f"dummy_jwt_for_{email}"
+        redirect = RedirectResponse(url="/dashboard", status_code=303)
+        redirect.set_cookie(
+            key="access_token",
+            value=dummy_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+        )
+        return redirect
+
+    client = create_client(
+        settings.supabase_url,
+        settings.supabase_anon_key
     )
-    return redirect
+    try:
+        auth_response = client.auth.sign_in_with_password({"email": email, "password": password})
+        if not auth_response.session:
+            raise HTTPException(status_code=401, detail="Authentication failed")
+        token = auth_response.session.access_token
+
+        redirect = RedirectResponse(url="/dashboard", status_code=303)
+        redirect.set_cookie(
+            key="access_token",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+        )
+        return redirect
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
 
 # Serve static assets (logos, etc.)
