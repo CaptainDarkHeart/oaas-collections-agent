@@ -2,37 +2,33 @@
 
 ## Project Overview
 
-AI-powered collections agent that chases overdue invoices on behalf of SMEs using psychological escalation techniques (Chris Voss tactical empathy). Operates across email, AI voice, and LinkedIn DM with four behavioural phases over a 21+ day cycle.
+AI powered collections agent that chases overdue invoices on behalf of SMEs using psychological escalation techniques (Chris Voss tactical empathy). Operates across email, AI voice, and LinkedIn DM with four behavioural phases over a strict 21 day cycle.
 
-Business model: outcome-only pricing. 10% fee on invoices over GBP 5,000, or GBP 500 flat fee for stalled invoices 60+ days overdue. Zero upfront cost to the SME.
+Business model: outcome only pricing. 10% fee on invoices over GBP 5,000, or GBP 500 flat fee for stalled invoices 60+ days overdue. Zero upfront cost to the SME.
 
 ## Architecture
 
-Three-brain agentic workflow:
-- **Sentry** (`src/sentry/`) — Integration brain. Monitors accounting software (Codat/CSV), identifies overdue invoices, pulls contact metadata.
-- **Strategist** (`src/strategist/`) — Psychological brain. LLM-powered (Claude Sonnet 4). Manages phase state machine, classifies responses, generates messages.
-- **Executor** (`src/executor/`) — Multi-channel brain. Sends emails (Resend), voice calls (Vapi/ElevenLabs), LinkedIn DMs. Handles variable cadence.
+Three brain agentic workflow:
+
+**Sentry** (`src/sentry/`) Integration brain. Monitors accounting software (Codat, Xero, QuickBooks, CSV), identifies overdue invoices, pulls contact metadata, handles OAuth token management, and processes Codat and Stripe webhooks with idempotency.
+
+**Strategist** (`src/strategist/`) Psychological brain. LLM powered (Claude Sonnet 4). Manages phase state machine with `phase_start_date` based escalation timing. Classifies responses into 8 categories. Generates all messages using tactical empathy prompt templates with post generation guardrails.
+
+**Executor** (`src/executor/`) Multi channel brain. Sends emails (Resend), voice calls (Vapi/ElevenLabs), LinkedIn DMs. Handles variable cadence and custom sending domain setup.
 
 ## Tech Stack
 
-- **Language:** Python 3.11+
-- **LLM:** Claude Sonnet 4 via Anthropic API
-- **Database:** PostgreSQL via Supabase
-- **Email:** Resend
-- **Voice:** Vapi + ElevenLabs
-- **Accounting API:** Codat (MVP), Nango (Phase 3 evaluation)
-- **Payments:** Stripe
-- **Config:** pydantic-settings with .env
+Python 3.11+ with Claude Sonnet 4 API, PostgreSQL (Supabase with Row Level Security), Resend, Vapi/ElevenLabs, Codat, Stripe, FastAPI dashboard with JWT auth.
 
 ## Key Constraints
 
-- Agent must NEVER hallucinate discounts, payment terms, or legal threats
-- Discount offers gated by `discount_authorised` boolean + phase-specific limits (see `src/strategist/constraints.py`)
-- On DISPUTE or HOSTILE classification, agent pauses immediately — human must clear flag
-- Phase 4 language is templated, not LLM-generated, to eliminate hallucination risk
-- "External compliance partner" is the strongest language permitted — never threaten legal action
-- Variable send cadence — never look automated, never contact same person twice in one day
-- Max 30 cold emails per day per inbox
+The agent must NEVER hallucinate discounts, payment terms, or legal threats. Discount offers gated by `discount_authorised` boolean and phase specific limits (see `src/strategist/constraints.py`). On DISPUTE or HOSTILE classification, agent pauses immediately and human must clear flag. "External compliance partner" is the strongest language permitted. Variable send cadence ensures the agent never looks automated and never contacts same person twice in one day. Max 30 cold emails per day per inbox.
+
+All generated messaging must use Chris Voss tactical empathy principles (late night FM DJ voice, calibrated questions, empathy mirrors, labelling, accusation audits). Semicolons and hyphens are strictly prohibited in all generated output.
+
+## Database Security
+
+The database layer enforces tenant isolation through PostgreSQL Row Level Security (RLS). Dashboard sessions use JWT tokens via the Supabase anon key. Backend processes use the service role key for administrative operations. The RLS migration is at `migrations/20260328_rls_policies.sql`.
 
 ## Development
 
@@ -40,7 +36,7 @@ Three-brain agentic workflow:
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env  # Fill in API keys
+cp .env.example .env
 pytest
 ```
 
@@ -62,6 +58,4 @@ uvicorn src.dashboard.app:app --reload --port 8000
 
 ## Current Status
 
-Phase 1 MVP implemented. All core components built and tested (69 tests passing).
-
-Next steps (Phase 2): Vapi voice integration, Codat accounting API, Stripe payment links, write-back to accounting software.
+Phase 2 complete. 276 tests passing. Key recent updates include phase_start_date based escalation for accurate 21 day cycle, Row Level Security migration, JWT authentication for the dashboard, tactical empathy prompt standardization, and post generation punctuation guardrails.
