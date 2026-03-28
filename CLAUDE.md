@@ -11,14 +11,14 @@ Business model: outcome-only pricing. 10% fee on invoices over GBP 5,000, or GBP
 Three-brain agentic workflow:
 - **Sentry** (`src/sentry/`) — Integration brain. Monitors accounting software (Codat/CSV), identifies overdue invoices, pulls contact metadata.
 - **Strategist** (`src/strategist/`) — Psychological brain. LLM-powered (Claude Sonnet 4). Manages phase state machine, classifies responses, generates messages.
-- **Executor** (`src/executor/`) — Multi-channel brain. Sends emails (Instantly.ai), voice calls (Vapi/ElevenLabs), LinkedIn DMs. Handles variable cadence.
+- **Executor** (`src/executor/`) — Multi-channel brain. Sends emails (Resend), voice calls (Vapi/ElevenLabs), LinkedIn DMs. Handles variable cadence.
 
 ## Tech Stack
 
 - **Language:** Python 3.11+
 - **LLM:** Claude Sonnet 4 via Anthropic API
 - **Database:** PostgreSQL via Supabase
-- **Email:** Instantly.ai
+- **Email:** Resend
 - **Voice:** Vapi + ElevenLabs
 - **Accounting API:** Codat (MVP), Nango (Phase 3 evaluation)
 - **Payments:** Stripe

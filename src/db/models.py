@@ -260,10 +260,18 @@ class AccountingConnection(BaseModel):
 class Database:
     """Thin wrapper around the Supabase client for CRUD operations."""
 
-    def __init__(self) -> None:
-        from supabase import create_client
+    def __init__(self, jwt_token: str | None = None) -> None:
+        from supabase import create_client, ClientOptions
 
-        self.client = create_client(settings.supabase_url, settings.supabase_service_role_key)
+        if jwt_token:
+            options = ClientOptions(headers={"Authorization": f"Bearer {jwt_token}"})
+            self.client = create_client(
+                settings.supabase_url,
+                settings.supabase_anon_key,
+                options=options
+            )
+        else:
+            self.client = create_client(settings.supabase_url, settings.supabase_service_role_key)
 
     # -- SME --
 

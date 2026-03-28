@@ -143,8 +143,14 @@ def _process_invoice(
         if i["direction"] == Direction.OUTBOUND.value and str(i["phase"]) == current_phase.value
     )
 
+    # Calculate due date info
+    due_date = date.fromisoformat(invoice["due_date"])
+    days_overdue = (date.today() - due_date).days
+
+    phase_start = _get_phase_start_date(interactions, current_phase, invoice)
+
     # Check if we should escalate to the next phase
-    if interactions_in_phase > 0 and should_escalate(current_phase, last_outbound_at):
+    if interactions_in_phase > 0 and should_escalate(current_phase, phase_start):
         result = handle_classification(Classification.NO_RESPONSE, current_phase, invoice_id, db)
         logger.info("Invoice %s: %s", invoice["invoice_number"], result.message)
 
@@ -157,13 +163,9 @@ def _process_invoice(
         if updated:
             current_phase = InvoicePhase(updated["current_phase"])
             interactions_in_phase = 0
-
-    # Calculate due date info
-    due_date = date.fromisoformat(invoice["due_date"])
-    days_overdue = (date.today() - due_date).days
+            phase_start = _get_phase_start_date(interactions, current_phase, updated)
 
     # Check cadence schedule
-    phase_start = _get_phase_start_date(interactions, current_phase, invoice)
     next_send = schedule_next_send(
         phase=current_phase,
         phase_start_date=phase_start,

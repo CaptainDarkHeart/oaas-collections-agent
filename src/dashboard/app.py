@@ -20,8 +20,8 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from fastapi import Depends, FastAPI, File, Form, Query, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import Depends, FastAPI, File, Form, Query, Request, UploadFile, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 
@@ -41,7 +41,7 @@ _security = HTTPBasic(auto_error=False)
 _DASHBOARD_PASSWORD = settings.dashboard_password
 
 # Paths accessible without authentication
-_PUBLIC_PATHS = {"/", "/health"}
+_PUBLIC_PATHS = {"/", "/health", "/login", "/api/auth/login"}
 
 
 def _require_auth(
@@ -60,6 +60,9 @@ def _require_auth(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Basic"},
         )
+    if "access_token" in request.cookies:
+        return  # Authenticated via JWT cookie
+
     ok = secrets.compare_digest(credentials.password.encode(), _DASHBOARD_PASSWORD.encode())
     if not ok:
         from fastapi import HTTPException
@@ -78,10 +81,61 @@ app = FastAPI(
 )
 
 
+import contextvars
+_request_ctx: contextvars.ContextVar[Request | None] = contextvars.ContextVar("request", default=None)
+
+@app.middleware("http")
+async def context_middleware(request: Request, call_next):
+    _request_ctx.set(request)
+    return await call_next(request)
+
 @app.get("/health", dependencies=[])
 async def health() -> dict[str, str]:
     """Health check endpoint (no auth required)."""
     return {"status": "ok"}
+
+@app.get("/login", response_class=HTMLResponse, dependencies=[])
+async def login_page():
+    """Placeholder login page for JWT auth."""
+    html = """
+    <html>
+    <head><title>Login</title></head>
+    <body style="font-family: sans-serif; display: flex; justify-content: center; margin-top: 100px;">
+        <div style="width: 300px; padding: 20px; border: 1px solid #ccc; border-radius: 8px;">
+            <h2>Dashboard Login</h2>
+            <form action="/api/auth/login" method="post">
+                <div style="margin-bottom: 12px;">
+                    <label>Email</label><br/>
+                    <input type="email" name="email" required style="width: 100%; padding: 8px;" />
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <label>Password</label><br/>
+                    <input type="password" name="password" required style="width: 100%; padding: 8px;" />
+                </div>
+                <button type="submit" style="width: 100%; padding: 10px; background: #0F172A; color: white; border: none; border-radius: 4px;">Sign In</button>
+            </form>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(html)
+
+@app.post("/api/auth/login", dependencies=[])
+async def auth_login(response: Response, email: str = Form(...), password: str = Form(...)):
+    """Placeholder Supabase Auth login endpoint."""
+    # This is a placeholder that normally would call supabase.auth.sign_in_with_password()
+    # For now, we simulate a successful login if the password matches the global one or just set a dummy token
+    dummy_token = f"dummy_jwt_for_{email}"
+    
+    redirect = RedirectResponse(url="/dashboard", status_code=303)
+    redirect.set_cookie(
+        key="access_token",
+        value=dummy_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+    )
+    return redirect
 
 
 # Serve static assets (logos, etc.)
@@ -102,7 +156,10 @@ def _db():
         return _demo_db()
     from src.db.models import Database
 
-    return Database()
+    req = _request_ctx.get(None)
+    jwt_token = req.cookies.get("access_token") if req else None
+
+    return Database(jwt_token=jwt_token)
 
 
 # ---------------------------------------------------------------------------

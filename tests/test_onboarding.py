@@ -75,7 +75,7 @@ class TestOnboardPage:
         assert resp.status_code == 303
 
     def test_dashboard_shows_onboarded_flash(self):
-        resp = client.get("/?onboarded=true")
+        resp = client.get("/dashboard?onboarded=true")
         assert resp.status_code == 200
         assert "New client onboarded successfully" in resp.text
 
@@ -171,13 +171,13 @@ class TestSmeApi:
 
 class TestNavLinks:
     def test_nav_has_add_client_link(self):
-        resp = client.get("/")
+        resp = client.get("/dashboard")
         assert resp.status_code == 200
         assert 'href="/onboard"' in resp.text
         assert "Add Client" in resp.text
 
     def test_nav_has_reports_link(self):
-        resp = client.get("/")
+        resp = client.get("/dashboard")
         assert resp.status_code == 200
         assert 'href="/reports"' in resp.text
         assert "Reports" in resp.text

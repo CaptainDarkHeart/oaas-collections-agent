@@ -204,28 +204,28 @@ def _escalate_phase(
 
 def should_escalate(
     current_phase: InvoicePhase,
-    last_outbound_at: datetime | None,
+    phase_start_date: datetime | date | None,
     accelerated: bool = False,
 ) -> bool:
-    """Check if enough time has passed to escalate to the next phase.
-
-    Args:
-        current_phase: The invoice's current phase.
-        last_outbound_at: Timestamp of the last outbound message.
-        accelerated: If True, reduce the phase duration by 2 days (STALL response).
-    """
+    """Evaluate proper timing parameters checking elapsed duration against phase initiation date to safely control progression"""
     if current_phase not in PHASE_SCHEDULE:
         return False
 
-    if last_outbound_at is None:
-        return True  # Never contacted — start immediately
+    if phase_start_date is None:
+        return True
 
     schedule = PHASE_SCHEDULE[current_phase]
     duration = schedule["duration"]
     if accelerated:
         duration = max(1, duration - 2)
 
-    elapsed = (datetime.now(UTC).replace(tzinfo=None) - last_outbound_at).days
+    if hasattr(phase_start_date, "date"):
+        start_date = phase_start_date.date()
+    else:
+        start_date = phase_start_date
+
+    now_date = datetime.now(UTC).date()
+    elapsed = (now_date - start_date).days
     return elapsed >= duration
 
 

@@ -81,9 +81,8 @@ def generate_message(ctx: MessageContext) -> GeneratedMessage:
     raw = message.content[0].text.strip()
     subject, body = _parse_email(raw, ctx)
 
-    # Post-generation guardrail: check for banned words in Phase 1
-    if ctx.phase == InvoicePhase.PHASE_1:
-        body = _enforce_banned_words(body)
+    # Post generation guardrail
+    body = _enforce_banned_words(body, ctx.phase)
 
     return GeneratedMessage(subject=subject, body=body)
 
@@ -193,23 +192,22 @@ def _generate_reply_to_sent(ctx: MessageContext) -> GeneratedMessage:
     )
 
 
-def _enforce_banned_words(body: str) -> str:
-    """Post-generation check: replace any banned Phase 1 words.
-
-    If the LLM slips a banned word through, replace it with a safe alternative.
-    This is a hard guardrail on top of the prompt constraint.
-    """
-    replacements = {
-        "overdue": "outstanding",
-        "late": "pending",
-        "debt": "balance",
-        "owed": "outstanding",
-        "collections": "accounts",
-    }
-    lower_body = body.lower()
-    for banned in PHASE_1_BANNED_WORDS:
-        if banned in lower_body:
-            replacement = replacements.get(banned, "outstanding")
-            # Case-insensitive word-boundary replacement
-            body = re.sub(r"\b" + re.escape(banned) + r"\b", replacement, body, flags=re.IGNORECASE)
+def _enforce_banned_words(body: str, phase: InvoicePhase) -> str:
+    """Post generation check replace banned words and prohibit characters"""
+    if phase == InvoicePhase.PHASE_1:
+        replacements = {
+            "overdue": "outstanding",
+            "late": "pending",
+            "debt": "balance",
+            "owed": "outstanding",
+            "collections": "accounts",
+        }
+        lower_body = body.lower()
+        for banned in PHASE_1_BANNED_WORDS:
+            if banned in lower_body:
+                replacement = replacements.get(banned, "outstanding")
+                body = re.sub(r"\b" + re.escape(banned) + r"\b", replacement, body, flags=re.IGNORECASE)
+                
+    # Strip semicolons and hyphens globally
+    body = re.sub(r"[;\-]", "", body)
     return body

@@ -123,6 +123,6 @@ class TestReportsNavLink:
         _reset_demo()
 
     def test_reports_link_in_nav(self):
-        resp = client.get("/")
+        resp = client.get("/dashboard")
         assert resp.status_code == 200
         assert 'href="/reports"' in resp.text

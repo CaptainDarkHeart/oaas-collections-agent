@@ -13,7 +13,11 @@ client = TestClient(app, headers={"Authorization": "Basic dXNlcjp0ZXN0"})
 
 
 class TestCodatWebhook:
-    def test_codat_webhook_accepts_valid_payload(self):
+    @patch("src.sentry.webhook_handler.Database")
+    def test_codat_webhook_accepts_valid_payload(self, mock_db_cls):
+        mock_db = MagicMock()
+        mock_db.has_processed_event.return_value = False
+        mock_db_cls.return_value = mock_db
         resp = client.post(
             "/webhooks/codat",
             json={
@@ -25,7 +29,11 @@ class TestCodatWebhook:
         assert resp.status_code == 200
         assert resp.json() == {"received": True}
 
-    def test_codat_webhook_unknown_type(self):
+    @patch("src.sentry.webhook_handler.Database")
+    def test_codat_webhook_unknown_type(self, mock_db_cls):
+        mock_db = MagicMock()
+        mock_db.has_processed_event.return_value = False
+        mock_db_cls.return_value = mock_db
         resp = client.post(
             "/webhooks/codat",
             json={
@@ -35,8 +43,12 @@ class TestCodatWebhook:
         )
         assert resp.status_code == 200
 
+    @patch("src.sentry.webhook_handler.Database")
     @patch("src.sentry.invoice_sync.run_invoice_sync")
-    def test_codat_sync_complete_triggers_sync(self, mock_sync):
+    def test_codat_sync_complete_triggers_sync(self, mock_sync, mock_db_cls):
+        mock_db = MagicMock()
+        mock_db.has_processed_event.return_value = False
+        mock_db_cls.return_value = mock_db
         resp = client.post(
             "/webhooks/codat",
             json={

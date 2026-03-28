@@ -89,15 +89,40 @@ The system detects payments via three paths:
 
 In all cases, a fee is created only if `first_contacted_at` is set (i.e. the agent actually contacted the debtor). If no prior contact, payment is marked resolved with no fee charged.
 
+## Reply Classification
+
+Inbound replies are classified by LLM into one of eight categories:
+
+| Classification | Agent action |
+|---|---|
+| `PROMISE_TO_PAY` | Monitor; re-engage if payment misses promised date |
+| `PAYMENT_PENDING` | Request reference number; follow up in 3 days |
+| `DISPUTE` | Pause immediately; alert SME; human must clear |
+| `REDIRECT` | Add new contact to Phase 1 sequence |
+| `STALL` | Continue current phase on accelerated timeline |
+| `HOSTILE` | Hard stop; do not respond; human review required |
+| `WRITE_OFF_CLAIMED` | Pause; alert SME with two explicit CTAs (see below) |
+| `NO_RESPONSE` | Escalate to next phase after phase duration elapsed |
+
+### Write-Off Claimed
+
+When a debtor claims the invoice was written off or cancelled, the agent pauses and alerts the SME with two options:
+
+- **Confirm Write-Off** — closes the invoice as `WRITTEN_OFF`. Fee discussion follows if the agent had already contacted the debtor.
+- **Debtor Lied — Resume** — restores the invoice to active at Phase 3 minimum, regardless of where the sequence was. The stronger tone is warranted.
+
+The pre-claim phase is stored in `pre_write_off_phase` so the system always resumes in the right place.
+
 ## Safety Guardrails
 
-- Agent never hallucinate discounts or legal threats
+- Agent never hallucinates discounts or legal threats
 - Discount offers gated by `discount_authorised` flag + per-SME `max_discount_percent`
-- DISPUTE or HOSTILE classifications pause the agent immediately — human must clear before re-engagement
+- `DISPUTE`, `HOSTILE`, and `WRITE_OFF_CLAIMED` all pause the agent immediately — human must act before re-engagement
 - Phase 4 uses templated language only (no LLM generation)
 - "External compliance partner" is the strongest language permitted
 - Variable cadence — never looks automated, never contacts same person twice in one day
 - Max 30 cold emails per day per inbox
+- Fee calculated on original invoice amount, not Stripe checkout amount (prevents partial-payment threshold exploit)
 
 ## Disconnect Protection
 
@@ -105,6 +130,6 @@ If an SME disconnects their accounting integration while contacted invoices are 
 
 ## Status
 
-Phase 1 MVP complete. 84+ tests passing.
+Phase 1 MVP complete. 262 tests passing.
 
 **Phase 2 (next):** Vapi voice integration, Stripe payment link write-back, deeper Codat webhook handling.
