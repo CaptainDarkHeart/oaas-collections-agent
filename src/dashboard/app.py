@@ -1918,10 +1918,11 @@ def _landing_html() -> str:
         }
         .lp-hero-inner {
             position: relative;
-            max-width: 1320px;
+            max-width: 1440px;
             margin: 0 auto;
-            padding: 100px 48px;
+            padding: 120px 48px 0; /* No bottom padding, mockup overhangs */
             width: 100%;
+            text-align: center;
         }
         .lp-badge {
             display: inline-flex;
@@ -1929,15 +1930,15 @@ def _landing_html() -> str:
             gap: 8px;
             padding: 6px 16px;
             border-radius: 999px;
-            border: 1px solid rgba(0,179,104,0.3);
-            background: rgba(0,179,104,0.1);
+            border: 1px solid rgba(22, 163, 74, 0.3);
+            background: rgba(22, 163, 74, 0.1);
             margin-bottom: 28px;
         }
         .lp-badge-dot {
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: var(--green);
+            background: var(--success);
             animation: pulse 2s ease-in-out infinite;
         }
         @keyframes pulse {
@@ -1947,24 +1948,54 @@ def _landing_html() -> str:
         .lp-badge span {
             font-size: 13px;
             font-weight: 500;
-            color: var(--green);
+            color: var(--success);
             letter-spacing: 0.2px;
         }
         .lp-hero h1 {
-            font-size: clamp(40px, 5vw, 72px);
-            font-weight: 800;
+            font-family: 'Oswald', sans-serif;
+            font-size: clamp(80px, 10vw, 130px); /* Even bigger massiveness */
+            font-weight: 700;
             color: var(--white);
-            line-height: 1.1;
-            letter-spacing: -1.5px;
-            margin-bottom: 6px;
+            line-height: 0.95;
+            letter-spacing: -3px;
+            margin-bottom: 32px;
+            text-transform: uppercase;
         }
-        .lp-hero h1 .green { color: var(--green); }
+        .lp-hero h1 .green { color: var(--secondary); } /* Use orange for accent in hero */
         .lp-hero-desc {
-            font-size: 17px;
-            color: rgba(255,255,255,0.65);
-            line-height: 1.65;
-            max-width: 520px;
-            margin: 20px 0 36px;
+            font-size: 20px;
+            color: rgba(255,255,255,0.7);
+            line-height: 1.4;
+            max-width: 800px;
+            margin: 24px auto 40px;
+        }
+        .lp-hero-mockup {
+            max-width: 1100px;
+            margin: 80px auto -140px; /* Overhang into next section */
+            position: relative;
+            z-index: 10;
+        }
+        .lp-mockup-frame {
+            background: #202A37;
+            border-radius: 12px 12px 0 0;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .lp-mockup-dot { width: 10px; height: 10px; border-radius: 50%; opacity: 0.8; }
+        .lp-mockup-dot.red { background: #FF5F57; }
+        .lp-mockup-dot.yellow { background: #FFBC2E; }
+        .lp-mockup-dot.green { background: #28C840; }
+        
+        .lp-mockup-img {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 0 0 12px 12px;
+            box-shadow: 0 40px 100px rgba(0,0,0,0.5);
+            background: #ffffff;
         }
         .lp-hero-cta {
             display: inline-flex;
@@ -1983,8 +2014,9 @@ def _landing_html() -> str:
         .lp-trust {
             display: flex;
             align-items: center;
-            gap: 24px;
-            margin-top: 28px;
+            justify-content: center;
+            gap: 32px;
+            margin-top: 32px;
             flex-wrap: wrap;
         }
         .lp-trust-item {
@@ -1997,7 +2029,7 @@ def _landing_html() -> str:
         .lp-trust-item svg { color: var(--green); flex-shrink: 0; }
 
         /* ── Section common ── */
-        .lp-section { padding: 96px 48px; }
+        .lp-section { padding: 220px 48px 96px; } /* Increased top padding to accommodate hero mockup overhang */
         .lp-section-inner { max-width: 1320px; margin: 0 auto; }
         .lp-light { background: var(--light); }
         .lp-dark { background: var(--navy); }
@@ -2248,7 +2280,7 @@ def _landing_html() -> str:
             Capital recovered.<br>
             <span class="green">Relationships intact.</span>
         </h1>
-        <p class="lp-hero-desc">Stop chasing invoices with generic templates or aggressive collectors. TactfulPay uses behavioral psychology and tactical empathy to secure your payments while preserving your client bonds: all with zero upfront cost.</p>
+        <p class="lp-hero-desc">Stop chasing invoices with generic templates or aggressive collectors. TactfulPay uses behavioral psychology and tactical empathy to secure your payments while preserving your client bonds &mdash; all with zero upfront cost.</p>
         <a href="#portal" class="lp-hero-cta">
             Secure My Cash Flow
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
@@ -2266,6 +2298,15 @@ def _landing_html() -> str:
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 10% commission only when you get paid
             </div>
+        </div>
+        
+        <div class="lp-hero-mockup">
+            <div class="lp-mockup-frame">
+                <div class="lp-mockup-dot red"></div>
+                <div class="lp-mockup-dot yellow"></div>
+                <div class="lp-mockup-dot green"></div>
+            </div>
+            <img src="/static/dashboard-mockup.png" class="lp-mockup-img" alt="TactfulPay Collections Dashboard">
         </div>
     </div>
 </section>
@@ -2425,7 +2466,7 @@ def _landing_html() -> str:
         </div>
         <div class="lp-footer-bottom">
             <span>&copy; 2026 TactfulPay. All rights reserved.</span>
-            <span>Our communication methodology draws from established negotiation principles, including those outlined in Chris Voss&rsquo;s &ldquo;<a href="#">Never Split the Difference</a>&rdquo;.</span>
+            <span>Our communication methodology draws from established negotiation principles, including those outlined in Chris Voss&rsquo;s &ldquo;<a href="https://www.blackswanltd.com/never-split-the-difference" target="_blank">Never Split the Difference</a>&rdquo;.</span>
         </div>
     </div>
 </footer>
