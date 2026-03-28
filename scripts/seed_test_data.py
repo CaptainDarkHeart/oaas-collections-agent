@@ -8,12 +8,12 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from src.db.models import (
+    SME,
     AccountingPlatform,
     Contact,
     ContactSource,
     Database,
     Invoice,
-    SME,
 )
 
 

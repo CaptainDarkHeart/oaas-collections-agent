@@ -8,16 +8,12 @@ Covers:
 - OAuth payment detection for Xero and QuickBooks
 """
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-import pytest
-
-from src.billing.fee_calculator import calculate_fee
 from src.db.models import (
-    AccountingPlatform,
     ConnectionStatus,
     FeeType,
     InvoicePhase,
@@ -26,13 +22,9 @@ from src.db.models import (
 from src.sentry.codat_client import CodatInvoice
 from src.sentry.invoice_sync import (
     _check_disconnects,
-    _create_fee_if_attributed,
-    _resolve_externally_paid,
     check_paid_externally_oauth,
-    run_full_sync,
     run_invoice_sync,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -546,7 +538,6 @@ class TestFirstContactedAtTracking:
             "max_discount_percent": 0,
         }
 
-        from src.executor.payment_link import StripePaymentLinks
 
         result = _process_invoice(db, MagicMock(), MagicMock(), sme, invoice)
 
