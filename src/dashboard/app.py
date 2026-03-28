@@ -1796,31 +1796,41 @@ def _landing_html() -> str:
     <title>TactfulPay: Capital Recovered, Relationships Intact</title>
     <link rel="icon" type="image/png" href="/static/logo-square.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
-            --green: #00B368;
-            --green-hover: #009959;
-            --navy: #1B2A3B;
-            --navy-mid: #2D3E53;
-            --light: #F9FAFB;
-            --text-dark: #202A37;
+            --primary: #072C2C;
+            --secondary: #FF5F03;
+            --success: #16A34A;
+            --warning: #D97706;
+            --danger: #DC2626;
+            --surface: #EDEADE;
+            --text-dark: #111827;
             --text-mid: #4B5563;
             --text-light: #9CA3AF;
             --white: #ffffff;
-            --border: #E5E7EB;
-            --red: #EF4444;
+            --border: #DFE1E5;
+            
+            --green: var(--success);
+            --green-hover: #15803d;
+            --navy: var(--primary);
+            --navy-mid: var(--primary);
+            --light: var(--surface);
+            --red: var(--danger);
         }
 
         html { scroll-behavior: smooth; }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--light);
+            font-family: 'Ubuntu', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--surface);
             color: var(--text-dark);
             -webkit-font-smoothing: antialiased;
+        }
+        h1, h2, h3, h4, h5, h6, .lp-section-title, .lp-stat-num, .lp-price-num, .lp-hero h1 {
+            font-family: 'Oswald', sans-serif;
         }
 
         /* ── Navbar ── */
@@ -1891,47 +1901,20 @@ def _landing_html() -> str:
             text-decoration: none;
             padding: 8px 18px;
             border-radius: 6px;
-            background: var(--green);
+            background: var(--secondary);
             transition: background 0.15s;
             white-space: nowrap;
         }
-        .btn-primary:hover { background: var(--green-hover); }
+        .btn-primary:hover { background: #E55502; }
 
         /* ── Hero ── */
         .lp-hero {
             min-height: 90vh;
             display: flex;
             align-items: center;
-            background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+            background: var(--primary);
             position: relative;
             overflow: hidden;
-        }
-        .lp-hero::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background-image: url("data:image/svg+xml,%3Csvg width='28' height='28' xmlns='http://www.w3.org/2000/svg'%3E%3Cline x1='14' y1='10' x2='14' y2='18' stroke='rgba(255,255,255,0.1)' stroke-width='1'/%3E%3Cline x1='10' y1='14' x2='18' y2='14' stroke='rgba(255,255,255,0.1)' stroke-width='1'/%3E%3C/svg%3E");
-            background-size: 28px 28px;
-        }
-        .lp-hero-glow1 {
-            position: absolute;
-            top: 33%;
-            right: 25%;
-            width: 500px;
-            height: 500px;
-            border-radius: 50%;
-            background: rgba(0,179,104,0.05);
-            filter: blur(60px);
-        }
-        .lp-hero-glow2 {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 400px;
-            height: 400px;
-            border-radius: 50%;
-            background: rgba(0,179,104,0.05);
-            filter: blur(60px);
         }
         .lp-hero-inner {
             position: relative;
@@ -1987,7 +1970,7 @@ def _landing_html() -> str:
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            background: var(--green);
+            background: var(--secondary);
             color: var(--white);
             text-decoration: none;
             font-size: 15px;
@@ -1996,7 +1979,7 @@ def _landing_html() -> str:
             border-radius: 6px;
             transition: background 0.15s, transform 0.15s;
         }
-        .lp-hero-cta:hover { background: var(--green-hover); transform: translateY(-1px); }
+        .lp-hero-cta:hover { background: #E55502; transform: translateY(-1px); }
         .lp-trust {
             display: flex;
             align-items: center;
@@ -2159,7 +2142,7 @@ def _landing_html() -> str:
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            background: var(--green);
+            background: var(--secondary);
             color: var(--white);
             text-decoration: none;
             font-size: 15px;
@@ -2168,7 +2151,7 @@ def _landing_html() -> str:
             border-radius: 6px;
             transition: background 0.15s;
         }
-        .lp-portal-cta:hover { background: var(--green-hover); }
+        .lp-portal-cta:hover { background: #E55502; }
 
         /* ── Footer ── */
         .lp-footer {
@@ -2256,8 +2239,6 @@ def _landing_html() -> str:
 
 <!-- Hero -->
 <section class="lp-hero">
-    <div class="lp-hero-glow1"></div>
-    <div class="lp-hero-glow2"></div>
     <div class="lp-hero-inner">
         <div class="lp-badge">
             <div class="lp-badge-dot"></div>
