@@ -52,7 +52,6 @@ def run_daily_cycle(
     db = db or Database()
     email_client = email_client or ResendClient()
     payment_links = payment_links or StripePaymentLinks()
-    emails_sent_today = 0
 
     logger.info("Starting daily cycle at %s", datetime.now(tz=UTC).replace(tzinfo=None).isoformat())
 
@@ -64,16 +63,48 @@ def run_daily_cycle(
         sme_name = sme["company_name"]
         logger.info("Processing SME: %s (%s)", sme_name, sme_id)
 
+        # Track emails per inbox (sending domain) for this SME
+        emails_sent_by_inbox: dict[str, int] = {}
+
         for invoice in db.list_active_invoices(sme_id=UUID(sme_id)):
-            if not is_within_daily_limit(emails_sent_today):
-                logger.warning("Daily email limit reached (%d). Stopping.", emails_sent_today)
-                return
+            # Determine the sending inbox for this invoice
+            sending_inbox = _get_sending_inbox(db, sme)
+            current_count = emails_sent_by_inbox.get(sending_inbox, 0)
+
+            if not is_within_daily_limit(current_count):
+                logger.warning(
+                    "Daily email limit reached for inbox %s (%d). Stopping for this inbox.",
+                    sending_inbox,
+                    current_count,
+                )
+                continue
 
             sent = _process_invoice(db, email_client, payment_links, sme, invoice)
             if sent:
-                emails_sent_today += 1
+                emails_sent_by_inbox[sending_inbox] = current_count + 1
 
-    logger.info("Daily cycle complete. Emails sent: %d", emails_sent_today)
+    total_sent = sum(emails_sent_by_inbox.values())
+    inbox_summary = ", ".join(f"{inbox}: {count}" for inbox, count in emails_sent_by_inbox.items())
+    logger.info("Daily cycle complete. Total emails sent: %d (%s)", total_sent, inbox_summary)
+
+
+def _get_sending_inbox(db: Database, sme: dict) -> str:
+    """Determine the sending inbox (email address) for an SME.
+
+    Returns the verified custom domain email if available,
+    otherwise the default agent email.
+    """
+    try:
+        domain_record = db.get_email_domain_by_sme(UUID(sme["id"]))
+        if domain_record and domain_record.get("status") == "verified":
+            return domain_record.get("sending_email") or (
+                f"{settings.agent_default_name.lower()}@{domain_record['domain_name']}"
+            )
+    except Exception:
+        pass
+    return (
+        settings.agent_default_email or f"{settings.agent_default_name.lower()}@default.example.com"
+    )
 
 
 def _check_pending_domains(db: Database) -> None:
@@ -90,11 +121,15 @@ def _check_pending_domains(db: Database) -> None:
             result = manager.get_domain_status(domain["resend_domain_id"])
             if not result.success:
                 continue
-            updates: dict = {"last_checked_at": datetime.now(tz=UTC).replace(tzinfo=None).isoformat()}
+            updates: dict = {
+                "last_checked_at": datetime.now(tz=UTC).replace(tzinfo=None).isoformat()
+            }
             if result.status == "verified":
                 updates["status"] = "verified"
                 updates["verified_at"] = datetime.now(tz=UTC).replace(tzinfo=None).isoformat()
-                logger.info("Domain %s verified for SME %s", domain["domain_name"], domain["sme_id"])
+                logger.info(
+                    "Domain %s verified for SME %s", domain["domain_name"], domain["sme_id"]
+                )
             elif result.status != domain.get("status"):
                 updates["status"] = result.status
             if result.records:
@@ -437,7 +472,19 @@ def _get_phase_start_date(
     current_phase: InvoicePhase,
     invoice: dict,
 ) -> date:
-    """Determine when the current phase started based on interaction history."""
+    """Determine when the current phase started based on interaction history.
+
+    If there are outbound interactions in the current phase, returns the date
+    of the first such interaction.
+
+    If there are no interactions in the current phase yet (freshly escalated),
+    returns the date of the most recent outbound interaction (the escalation
+    point), rather than the invoice creation date which would incorrectly
+    collapse the 21-day cycle.
+
+    If no interactions exist at all, falls back to invoice creation date.
+    """
+    # First, try to find an interaction in the current phase
     for interaction in interactions:
         if (
             str(interaction["phase"]) == current_phase.value
@@ -445,7 +492,15 @@ def _get_phase_start_date(
         ):
             return datetime.fromisoformat(interaction["sent_at"]).date()
 
-    # If no interactions in this phase yet, use the invoice creation date
+    # No interactions in current phase yet — find the most recent outbound
+    # interaction to use as the escalation point (not invoice creation date)
+    outbound_interactions = [i for i in interactions if i["direction"] == Direction.OUTBOUND.value]
+    if outbound_interactions:
+        # Use the most recent outbound interaction date
+        most_recent = max(outbound_interactions, key=lambda i: datetime.fromisoformat(i["sent_at"]))
+        return datetime.fromisoformat(most_recent["sent_at"]).date()
+
+    # Truly no interactions yet — fall back to invoice creation date
     return datetime.fromisoformat(invoice["created_at"]).date()
 
 

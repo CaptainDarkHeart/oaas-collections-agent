@@ -266,9 +266,7 @@ class Database:
         if jwt_token:
             options = ClientOptions(headers={"Authorization": f"Bearer {jwt_token}"})
             self.client = create_client(
-                settings.supabase_url,
-                settings.supabase_anon_key,
-                options=options
+                settings.supabase_url, settings.supabase_anon_key, options=options
             )
         else:
             self.client = create_client(settings.supabase_url, settings.supabase_service_role_key)
@@ -293,13 +291,7 @@ class Database:
 
     def update_sme(self, sme_id: UUID, updates: dict) -> dict:
         serialized = {k: self._serialize_value(v) for k, v in updates.items()}
-        return (
-            self.client.table("smes")
-            .update(serialized)
-            .eq("id", str(sme_id))
-            .execute()
-            .data[0]
-        )
+        return self.client.table("smes").update(serialized).eq("id", str(sme_id)).execute().data[0]
 
     # -- Invoice --
 
@@ -479,9 +471,7 @@ class Database:
 
     def delete_connection(self, connection_id: UUID) -> None:
         """Delete an accounting connection."""
-        self.client.table("accounting_connections").delete().eq(
-            "id", str(connection_id)
-        ).execute()
+        self.client.table("accounting_connections").delete().eq("id", str(connection_id)).execute()
 
     # -- Webhook Events (idempotency) --
 
@@ -495,6 +485,20 @@ class Database:
             .execute()
         )
         return len(resp.data) > 0
+
+    def try_mark_event_processed(self, event_id: str, source: str, event_type: str) -> bool:
+        """Atomically try to mark an event as processed.
+
+        Uses INSERT ... ON CONFLICT DO NOTHING to avoid race conditions.
+        Returns True if the event was newly marked (no prior record),
+        False if it was already processed (duplicate).
+        """
+        evt = WebhookEvent(event_id=event_id, source=source, event_type=event_type)
+        try:
+            self.client.table("webhook_events").insert(self._serialize(evt)).execute()
+            return True  # Insert succeeded — new event
+        except Exception:
+            return False  # Duplicate — already processed
 
     def mark_event_processed(self, event_id: str, source: str, event_type: str) -> None:
         """Record a webhook event as processed."""

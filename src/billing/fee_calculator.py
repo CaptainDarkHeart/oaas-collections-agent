@@ -2,7 +2,7 @@
 
 Business rules:
 - For invoices over GBP 5,000 (FEE_PERCENTAGE_THRESHOLD): 10% of recovered amount
-- For invoices at or below GBP 5,000, or stalled invoices 60+ days: GBP 500 flat fee
+- For invoices at or below GBP 5,000, OR stalled invoices 60+ days: GBP 500 flat fee
 - If nothing is recovered, no fee is charged
 """
 
@@ -14,11 +14,14 @@ from uuid import UUID
 from src.config import settings
 from src.db.models import Fee, FeeStatus, FeeType
 
+STALLED_DAYS_THRESHOLD = 60
+
 
 def calculate_fee(
     invoice_amount: Decimal,
     sme_id: UUID | str,
     invoice_id: UUID | str,
+    days_overdue: int = 0,
 ) -> Fee:
     """Calculate the recovery fee for a successfully collected invoice.
 
@@ -26,6 +29,8 @@ def calculate_fee(
         invoice_amount: The amount that was recovered.
         sme_id: The SME client's ID.
         invoice_id: The invoice ID.
+        days_overdue: Number of days the invoice was overdue when recovered.
+            If 60 or more, triggers the flat fee regardless of amount.
 
     Returns:
         A Fee object (not yet persisted) with the calculated amount.
@@ -37,7 +42,11 @@ def calculate_fee(
     percentage = Decimal(str(settings.fee_percentage))
     flat_amount = Decimal(str(settings.fee_flat_amount))
 
-    if invoice_amount > threshold:
+    # Stalled invoices (60+ days overdue) always use flat fee
+    if days_overdue >= STALLED_DAYS_THRESHOLD:
+        fee_amount = flat_amount
+        fee_type = FeeType.FLAT
+    elif invoice_amount > threshold:
         fee_amount = (invoice_amount * percentage / 100).quantize(Decimal("0.01"))
         fee_type = FeeType.PERCENTAGE
     else:

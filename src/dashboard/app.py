@@ -82,9 +82,13 @@ app = FastAPI(
     dependencies=[Depends(_require_auth)],
 )
 
+_cors_origins = settings.cors_allowed_origins if settings.cors_allowed_origins else []
+if not _cors_origins:
+    _cors_origins = ["http://localhost:8000", "http://localhost:9100"]  # Safe defaults for dev
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -93,17 +97,22 @@ app.add_middleware(
 
 import contextvars
 
-_request_ctx: contextvars.ContextVar[Request | None] = contextvars.ContextVar("request", default=None)
+_request_ctx: contextvars.ContextVar[Request | None] = contextvars.ContextVar(
+    "request", default=None
+)
+
 
 @app.middleware("http")
 async def context_middleware(request: Request, call_next):
     _request_ctx.set(request)
     return await call_next(request)
 
+
 @app.get("/health", dependencies=[])
 async def health() -> dict[str, str]:
     """Health check endpoint (no auth required)."""
     return {"status": "ok"}
+
 
 @app.get("/login", response_class=HTMLResponse, dependencies=[])
 async def login_page():
@@ -131,6 +140,7 @@ async def login_page():
     """
     return HTMLResponse(html)
 
+
 from fastapi import HTTPException
 from supabase import create_client
 
@@ -150,10 +160,7 @@ async def auth_login(response: Response, email: str = Form(...), password: str =
         )
         return redirect
 
-    client = create_client(
-        settings.supabase_url,
-        settings.supabase_anon_key
-    )
+    client = create_client(settings.supabase_url, settings.supabase_anon_key)
     try:
         auth_response = client.auth.sign_in_with_password({"email": email, "password": password})
         if not auth_response.session:
@@ -788,19 +795,19 @@ async def dashboard_home(
         flash_html = (
             f'<div style="background: var(--success); color: white; padding: 12px 20px;'
             f' border-radius: var(--radius-md); margin-bottom: 16px;">'
-            f'&#10003; Successfully connected to {platform_name}</div>'
+            f"&#10003; Successfully connected to {platform_name}</div>"
         )
     elif synced is not None:
         flash_html = (
             f'<div style="background: var(--success); color: white; padding: 12px 20px;'
             f' border-radius: var(--radius-md); margin-bottom: 16px;">'
-            f'&#10003; Sync complete &mdash; {synced} invoice(s) imported</div>'
+            f"&#10003; Sync complete &mdash; {synced} invoice(s) imported</div>"
         )
     elif onboarded is not None:
         flash_html = (
             '<div style="background: var(--success); color: white; padding: 12px 20px;'
             ' border-radius: var(--radius-md); margin-bottom: 16px;">'
-            '&#10003; New client onboarded successfully</div>'
+            "&#10003; New client onboarded successfully</div>"
         )
 
     # Build connections panel
@@ -1034,6 +1041,7 @@ async def confirm_write_off(invoice_id: str):
     invoice = db.get_invoice(UUID(invoice_id))
     if invoice:
         from datetime import UTC, datetime
+
         db.update_invoice(
             UUID(invoice_id),
             {
@@ -1209,7 +1217,9 @@ async def domain_setup_page(sme_id: str, new: str | None = None, verified: str |
         return HTMLResponse("SME not found", status_code=404)
 
     domain_record = db.get_email_domain_by_sme(UUID(sme_id))
-    return HTMLResponse(_domain_html(sme, domain_record, is_new=new == "true", just_verified=verified == "true"))
+    return HTMLResponse(
+        _domain_html(sme, domain_record, is_new=new == "true", just_verified=verified == "true")
+    )
 
 
 @app.post("/sme/{sme_id}/domain")
@@ -1236,9 +1246,24 @@ async def domain_register(sme_id: str, domain_name: str = Form(...)):
             status=EmailDomainStatus.PENDING,
             sending_email=f"{settings.agent_default_name.lower()}@{domain_name}",
             dns_records=[
-                {"type": "TXT", "name": domain_name, "value": "v=spf1 include:resend.com ~all", "status": "pending"},
-                {"type": "CNAME", "name": f"resend._domainkey.{domain_name}", "value": "resend.domainkey.resend.dev", "status": "pending"},
-                {"type": "TXT", "name": f"_dmarc.{domain_name}", "value": "v=DMARC1; p=none;", "status": "pending"},
+                {
+                    "type": "TXT",
+                    "name": domain_name,
+                    "value": "v=spf1 include:resend.com ~all",
+                    "status": "pending",
+                },
+                {
+                    "type": "CNAME",
+                    "name": f"resend._domainkey.{domain_name}",
+                    "value": "resend.domainkey.resend.dev",
+                    "status": "pending",
+                },
+                {
+                    "type": "TXT",
+                    "name": f"_dmarc.{domain_name}",
+                    "value": "v=DMARC1; p=none;",
+                    "status": "pending",
+                },
             ],
         )
         db.create_email_domain(domain)
@@ -1249,14 +1274,17 @@ async def domain_register(sme_id: str, domain_name: str = Form(...)):
         result = manager.create_domain(domain_name)
         if not result.success:
             return HTMLResponse(
-                _base_html("Error", f"""
+                _base_html(
+                    "Error",
+                    f"""
                 <div class="container" style="max-width:680px">
                     <div class="card"><div class="card-body">
                         <h2 style="color:var(--danger)">Domain Registration Failed</h2>
-                        <p>{_escape(result.error or 'Unknown error')}</p>
+                        <p>{_escape(result.error or "Unknown error")}</p>
                         <a href="/sme/{sme_id}/domain" class="btn btn-primary" style="margin-top:16px">Try Again</a>
                     </div></div>
-                </div>"""),
+                </div>""",
+                ),
                 status_code=400,
             )
 
@@ -1285,11 +1313,14 @@ async def domain_verify(sme_id: str):
         # In demo mode, just mark as verified
         from datetime import UTC, datetime
 
-        db.update_email_domain(UUID(domain_record["id"]), {
-            "status": "verified",
-            "verified_at": datetime.now(tz=UTC).replace(tzinfo=None).isoformat(),
-            "last_checked_at": datetime.now(tz=UTC).replace(tzinfo=None).isoformat(),
-        })
+        db.update_email_domain(
+            UUID(domain_record["id"]),
+            {
+                "status": "verified",
+                "verified_at": datetime.now(tz=UTC).replace(tzinfo=None).isoformat(),
+                "last_checked_at": datetime.now(tz=UTC).replace(tzinfo=None).isoformat(),
+            },
+        )
     else:
         from src.executor.domain_manager import ResendDomainManager
 
@@ -1383,10 +1414,10 @@ async def reports_page():
         cfg = PHASE_COLORS.get(phase, {"bg": "#F3F4F6", "text": "#4B5563", "label": phase})
         width_pct = (count / max_phase * 100) if max_phase > 0 else 0
         phase_bars += f"""<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-            <div style="width:120px;font-size:13px;font-weight:600;color:{cfg['text']};flex-shrink:0">{cfg['label']}</div>
+            <div style="width:120px;font-size:13px;font-weight:600;color:{cfg["text"]};flex-shrink:0">{cfg["label"]}</div>
             <div style="flex:1;background:var(--sand-dark);border-radius:6px;height:28px;overflow:hidden">
-                <div style="width:{width_pct}%;height:100%;background:{cfg['bg']};border-radius:6px;min-width:2px;
-                            display:flex;align-items:center;padding-left:10px;font-size:12px;font-weight:600;color:{cfg['text']}">{count}</div>
+                <div style="width:{width_pct}%;height:100%;background:{cfg["bg"]};border-radius:6px;min-width:2px;
+                            display:flex;align-items:center;padding-left:10px;font-size:12px;font-weight:600;color:{cfg["text"]}">{count}</div>
             </div>
         </div>"""
 
@@ -1398,19 +1429,21 @@ async def reports_page():
         width_pct = (count / max_status * 100) if max_status > 0 else 0
         label = status.replace("_", " ").title()
         status_bars += f"""<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-            <div style="width:120px;font-size:13px;font-weight:600;color:{cfg['text']};flex-shrink:0;display:flex;align-items:center;gap:6px">
-                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{cfg['dot']}"></span>
+            <div style="width:120px;font-size:13px;font-weight:600;color:{cfg["text"]};flex-shrink:0;display:flex;align-items:center;gap:6px">
+                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{cfg["dot"]}"></span>
                 {label}
             </div>
             <div style="flex:1;background:var(--sand-dark);border-radius:6px;height:28px;overflow:hidden">
-                <div style="width:{width_pct}%;height:100%;background:{cfg['bg']};border-radius:6px;min-width:2px;
-                            display:flex;align-items:center;padding-left:10px;font-size:12px;font-weight:600;color:{cfg['text']}">{count}</div>
+                <div style="width:{width_pct}%;height:100%;background:{cfg["bg"]};border-radius:6px;min-width:2px;
+                            display:flex;align-items:center;padding-left:10px;font-size:12px;font-weight:600;color:{cfg["text"]}">{count}</div>
             </div>
         </div>"""
 
     revenue_fmt = f"\u00a3{data['revenue_earned']:,.2f}"
     recovery_fmt = f"{data['recovery_rate']:.1f}%"
-    avg_days_fmt = f"{data['avg_days_to_collection']:.0f}" if data['avg_days_to_collection'] else "\u2014"
+    avg_days_fmt = (
+        f"{data['avg_days_to_collection']:.0f}" if data["avg_days_to_collection"] else "\u2014"
+    )
 
     content = f"""
     <div class="container">
@@ -1434,7 +1467,7 @@ async def reports_page():
             </div>
             <div class="stat-card">
                 <div class="stat-label">Total Invoices</div>
-                <div class="stat-value">{data['total_invoices']}</div>
+                <div class="stat-value">{data["total_invoices"]}</div>
             </div>
         </div>
 
@@ -1657,7 +1690,9 @@ def _build_connections_panel(db, smes: list[dict]) -> str:
     all_connections = []
     for sme in smes:
         try:
-            conns = db.list_connections(UUID(sme["id"]) if not isinstance(sme["id"], UUID) else sme["id"])
+            conns = db.list_connections(
+                UUID(sme["id"]) if not isinstance(sme["id"], UUID) else sme["id"]
+            )
             for c in conns:
                 c["_sme_name"] = sme["company_name"]
             all_connections.extend(conns)
@@ -3296,7 +3331,9 @@ def _detail_html(
     )
 
 
-def _domain_html(sme: dict, domain_record: dict | None, is_new: bool = False, just_verified: bool = False) -> str:
+def _domain_html(
+    sme: dict, domain_record: dict | None, is_new: bool = False, just_verified: bool = False
+) -> str:
     company = _escape(sme.get("company_name", ""))
     sme_id = sme["id"]
 
@@ -3305,13 +3342,13 @@ def _domain_html(sme: dict, domain_record: dict | None, is_new: bool = False, ju
         flash = (
             f'<div style="background:{COLORS["success"]};color:white;padding:12px 20px;'
             f'border-radius:8px;margin-bottom:16px">'
-            f'&#10003; Client onboarded successfully. Now set up their email domain.</div>'
+            f"&#10003; Client onboarded successfully. Now set up their email domain.</div>"
         )
     elif just_verified:
         flash = (
             f'<div style="background:{COLORS["success"]};color:white;padding:12px 20px;'
             f'border-radius:8px;margin-bottom:16px">'
-            f'&#10003; Domain verified! Collection emails will now send from this domain.</div>'
+            f"&#10003; Domain verified! Collection emails will now send from this domain.</div>"
         )
 
     if not domain_record:
@@ -3483,7 +3520,7 @@ def _onboard_html() -> str:
                     </div>
                     <div style="margin-bottom:20px;display:flex;align-items:center;gap:10px">
                         <input type="checkbox" name="discount_authorised" id="discount_authorised" value="true"
-                               style="width:18px;height:18px;accent-color:{COLORS['cyan']}">
+                               style="width:18px;height:18px;accent-color:{COLORS["cyan"]}">
                         <label for="discount_authorised" style="font-size:14px;font-weight:500;color:var(--text-primary)">Discount Authorised</label>
                     </div>
                     <div style="margin-bottom:24px">

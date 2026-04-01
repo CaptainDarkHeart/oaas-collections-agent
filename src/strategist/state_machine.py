@@ -17,7 +17,7 @@ Transitions triggered by:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from src.db.models import (

@@ -55,7 +55,7 @@ class GeneratedMessage:
 
 def _check_discounts(body: str, ctx: MessageContext) -> None:
     """Check if the generated message offers unauthorized discounts."""
-    percentages = re.findall(r'(\d+(?:\.\d+)?)%', body)
+    percentages = re.findall(r"(\d+(?:\.\d+)?)%", body)
     for p in percentages:
         val = float(p)
         phase_num = int(ctx.phase.value) if ctx.phase.value.isdigit() else 0
@@ -63,10 +63,13 @@ def _check_discounts(body: str, ctx: MessageContext) -> None:
             percentage=val,
             payment_window_hours=24,
             phase=phase_num,
-            sme_authorised=ctx.discount_authorised
+            sme_authorised=ctx.discount_authorised,
         )
         if not offer.is_valid():
-            raise ValueError(f"Constraint Violation: Unauthorized discount of {val}% offered in phase {ctx.phase.value}")
+            raise ValueError(
+                f"Constraint Violation: Unauthorized discount of {val}% offered in phase {ctx.phase.value}"
+            )
+
 
 def generate_message(ctx: MessageContext) -> GeneratedMessage:
     """Generate an outbound email for the given phase and context.
@@ -110,7 +113,9 @@ def generate_message(ctx: MessageContext) -> GeneratedMessage:
             # add the violation feedback back to the prompt
             user_prompt += f"\n\nYour previous attempt failed with constraint violation: {e}. Please correct this."
 
-    raise RuntimeError(f"Failed to generate valid message after {max_retries} attempts. Last error: {last_error}")
+    raise RuntimeError(
+        f"Failed to generate valid message after {max_retries} attempts. Last error: {last_error}"
+    )
 
 
 def _load_phase_prompt(ctx: MessageContext) -> str:
@@ -198,14 +203,14 @@ def _generate_reply_to_sent(ctx: MessageContext) -> GeneratedMessage:
     if follow_up_num == 1:
         body = (
             f"Hi {ctx.contact_name},\n\n"
-            f"Sending this again in case it got buried — I know how hectic inboxes get. "
+            f"Sending this again in case it got buried - I know how hectic inboxes get. "
             f"Just wanted to make sure Invoice #{ctx.invoice_number} landed okay on your end.\n\n"
             f"Best,\n{ctx.agent_name}\n{ctx.sme_name}"
         )
     else:
         body = (
             f"Hi {ctx.contact_name},\n\n"
-            f"Just bumping this up one more time — I want to make sure we haven't "
+            f"Just bumping this up one more time - I want to make sure we haven't "
             f"hit a delivery issue with Invoice #{ctx.invoice_number}. "
             f"Happy to re-send a fresh copy if that helps.\n\n"
             f"Best,\n{ctx.agent_name}\n{ctx.sme_name}"
@@ -232,7 +237,9 @@ def _enforce_banned_words(body: str, phase: InvoicePhase) -> str:
         for banned in PHASE_1_BANNED_WORDS:
             if banned in lower_body:
                 replacement = replacements.get(banned, "outstanding")
-                body = re.sub(r"\b" + re.escape(banned) + r"\b", replacement, body, flags=re.IGNORECASE)
+                body = re.sub(
+                    r"\b" + re.escape(banned) + r"\b", replacement, body, flags=re.IGNORECASE
+                )
 
     # Reject semicolons and hyphens completely
     if re.search(r"[;\-]", body):

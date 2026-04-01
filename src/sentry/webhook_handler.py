@@ -13,18 +13,17 @@ import hashlib
 import hmac
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
+from src.billing.fee_calculator import calculate_fee
 from src.billing.stripe_billing import StripeBilling
 from src.config import settings
 from src.db.models import (
     Database,
-    Fee,
-    FeeType,
     InvoicePhase,
     InvoiceStatus,
 )
@@ -52,9 +51,14 @@ async def codat_webhook(
     """
     body = await request.body()
 
-    if settings.codat_webhook_secret and x_codat_signature:
-        if not _verify_codat_signature(body, x_codat_signature):
-            raise HTTPException(status_code=401, detail="Invalid signature")
+    if not settings.codat_webhook_secret:
+        raise HTTPException(status_code=500, detail="Codat webhook secret not configured")
+
+    if not x_codat_signature:
+        raise HTTPException(status_code=401, detail="Missing Codat signature header")
+
+    if not _verify_codat_signature(body, x_codat_signature):
+        raise HTTPException(status_code=401, detail="Invalid signature")
 
     payload = await request.json()
     event_type = payload.get("AlertType", payload.get("type", ""))
@@ -63,10 +67,10 @@ async def codat_webhook(
     # Deduplicate: use AlertId if present, otherwise combine CompanyId + AlertType
     event_id = payload.get("AlertId") or f"{company_id}:{event_type}"
 
-    # Check idempotency if DB is available
+    # Atomic idempotency check using INSERT ... ON CONFLICT DO NOTHING
     if settings.supabase_url:
         db = Database()
-        if db.has_processed_event(event_id):
+        if not db.try_mark_event_processed(event_id, "codat", event_type):
             logger.info("Codat webhook duplicate ignored: %s", event_id)
             return {"received": True, "duplicate": True}
 
@@ -77,9 +81,6 @@ async def codat_webhook(
         _handle_codat_sync_complete(company_id, payload)
     elif event_type in ("invoices.dataChanged", "DataChanged"):
         _handle_codat_data_changed(company_id, payload)
-
-    if settings.supabase_url:
-        db.mark_event_processed(event_id, "codat", event_type)
 
     return {"received": True}
 
@@ -139,10 +140,10 @@ async def stripe_webhook(
     event_id = event.get("id", "")
     event_type = event.get("type", "")
 
-    # Check idempotency if DB is available
+    # Atomic idempotency check using INSERT ... ON CONFLICT DO NOTHING
     if settings.supabase_url and event_id:
         db = Database()
-        if db.has_processed_event(event_id):
+        if not db.try_mark_event_processed(event_id, "stripe", event_type):
             logger.info("Stripe webhook duplicate ignored: %s", event_id)
             return {"received": True, "duplicate": True}
 
@@ -152,9 +153,6 @@ async def stripe_webhook(
         _handle_checkout_completed(billing, event)
     elif event_type == "payment_intent.payment_failed":
         _handle_payment_failed(event)
-
-    if settings.supabase_url and event_id:
-        db.mark_event_processed(event_id, "stripe", event_type)
 
     return {"received": True}
 
@@ -223,9 +221,7 @@ def _handle_debtor_payment(event: dict) -> None:
 
     demo_mode = not os.environ.get("SUPABASE_URL")
     if demo_mode:
-        logger.info(
-            "DEMO MODE: Would mark invoice %s as paid (amount=%s)", invoice_number, amount
-        )
+        logger.info("DEMO MODE: Would mark invoice %s as paid (amount=%s)", invoice_number, amount)
         return
 
     db = Database()
@@ -249,24 +245,20 @@ def _handle_debtor_payment(event: dict) -> None:
     # Calculate fee on the ORIGINAL invoice amount, not the Stripe payment amount.
     # This prevents the exploit where a debtor pays just under the threshold via
     # Stripe and settles the remainder outside the system.
-    original_amount = Decimal(str(invoice_data["amount"])) if invoice_data else amount
-
-    if original_amount > Decimal(str(settings.fee_percentage_threshold)):
-        fee_amount = original_amount * Decimal(str(settings.fee_percentage)) / 100
-        fee_type = FeeType.PERCENTAGE
+    # Also check if invoice has been stalled 60+ days for flat fee.
+    if invoice_data:
+        original_amount = Decimal(str(invoice_data["amount"]))
+        due_date = date.fromisoformat(invoice_data["due_date"])
+        days_overdue = (date.today() - due_date).days
     else:
-        fee_amount = Decimal(str(settings.fee_flat_amount))
-        fee_type = FeeType.FLAT
+        original_amount = amount
+        days_overdue = 0
 
     if sme_id:
-        fee = Fee(
-            invoice_id=invoice_id,
-            sme_id=sme_id,
-            fee_type=fee_type,
-            fee_amount=fee_amount,
-            invoice_amount_recovered=amount,
-        )
+        fee = calculate_fee(original_amount, sme_id, invoice_id, days_overdue)
         db.create_fee(fee)
+        fee_amount = fee.fee_amount
+        fee_type = fee.fee_type
 
     logger.info(
         "Debtor payment confirmed for invoice %s (%s): amount=%s, fee=%s (%s)",

@@ -51,6 +51,12 @@ class ResendClient:
             "text": body,
         }
 
+        if reply_to_message_id:
+            params["headers"] = {
+                "In-Reply-To": f"<{reply_to_message_id}>",
+                "References": f"<{reply_to_message_id}>",
+            }
+
         try:
             result = resend.Emails.send(params)
             return EmailResult(success=True, message_id=result.get("id"))

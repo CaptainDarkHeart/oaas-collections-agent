@@ -48,6 +48,7 @@ class Settings(BaseSettings):
 
     # Dashboard
     dashboard_password: str = ""
+    cors_allowed_origins: list[str] = []
 
     # Application
     agent_default_name: str = "Alex"

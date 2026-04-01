@@ -195,9 +195,7 @@ def _check_paid_externally(
     # Pull all invoices (not just overdue) to check paid status
     all_codat = codat.get_invoices(company_id)
     paid_numbers = {
-        inv.invoice_number
-        for inv in all_codat
-        if inv.status == "Paid" or inv.paid_on_date
+        inv.invoice_number for inv in all_codat if inv.status == "Paid" or inv.paid_on_date
     }
 
     for inv in existing_invoices:
@@ -261,7 +259,9 @@ def _create_fee_if_attributed(
 
     # Fee is calculated on the original invoice amount
     original_amount = Decimal(str(invoice_data["amount"]))
-    fee = calculate_fee(original_amount, sme_id, invoice_id)
+    due_date = date.fromisoformat(invoice_data["due_date"])
+    days_overdue = (date.today() - due_date).days
+    fee = calculate_fee(original_amount, sme_id, invoice_id, days_overdue)
     db.create_fee(fee)
 
     logger.info(
@@ -419,9 +419,7 @@ def upsert_normalised_invoices(
         # Create a contact if we have enough info
         contact_name = norm_inv.contact_name or norm_inv.debtor_company
         contact_email = norm_inv.contact_email
-        contact_source = _PLATFORM_CONTACT_SOURCE.get(
-            norm_inv.platform, ContactSource.CSV_UPLOAD
-        )
+        contact_source = _PLATFORM_CONTACT_SOURCE.get(norm_inv.platform, ContactSource.CSV_UPLOAD)
 
         if contact_name and contact_email:
             contact = Contact(
@@ -511,7 +509,9 @@ def check_paid_externally_oauth(
     if paid_count:
         logger.info(
             "Found %d externally-paid invoices via %s for SME %s",
-            paid_count, platform.value, sme_id,
+            paid_count,
+            platform.value,
+            sme_id,
         )
 
     return paid_count
@@ -520,9 +520,7 @@ def check_paid_externally_oauth(
 def _resolve_externally_paid(db: Database, inv: dict, sme_id: UUID) -> None:
     """Mark an invoice as paid externally and create a fee if attributed."""
     invoice_id = UUID(inv["id"])
-    logger.info(
-        "Invoice %s paid externally (OAuth) — resolving", inv["invoice_number"]
-    )
+    logger.info("Invoice %s paid externally (OAuth) — resolving", inv["invoice_number"])
     db.update_invoice(
         invoice_id,
         {
@@ -564,7 +562,8 @@ def _check_disconnects(db: Database, sme_id: UUID, sme_name: str) -> None:
     if contacted:
         logger.warning(
             "SME %s has %d contacted invoices but no active accounting connection",
-            sme_name, len(contacted),
+            sme_name,
+            len(contacted),
         )
         invoice_numbers = ", ".join(inv["invoice_number"] for inv in contacted[:5])
         slack_webhook.send_alert(
@@ -638,8 +637,7 @@ def run_full_sync(db: Database | None = None) -> dict:
             continue
 
         active_connections = [
-            c for c in connections
-            if c.get("status") == ConnectionStatus.ACTIVE.value
+            c for c in connections if c.get("status") == ConnectionStatus.ACTIVE.value
         ]
 
         for conn in active_connections:
@@ -670,10 +668,7 @@ def run_full_sync(db: Database | None = None) -> dict:
                     )
 
             except Exception as e:
-                error_msg = (
-                    f"Failed to sync connection {conn_id} ({platform}) "
-                    f"for {sme_name}: {e}"
-                )
+                error_msg = f"Failed to sync connection {conn_id} ({platform}) for {sme_name}: {e}"
                 logger.exception(error_msg)
                 summary["errors"].append(error_msg)
 
@@ -685,7 +680,9 @@ def run_full_sync(db: Database | None = None) -> dict:
             except Exception as e:
                 logger.warning(
                     "Failed OAuth paid check for %s (%s): %s",
-                    sme_name, conn.get("platform", "?"), e,
+                    sme_name,
+                    conn.get("platform", "?"),
+                    e,
                 )
 
         # --- Check for disconnected integrations with active invoices ---
@@ -693,7 +690,9 @@ def run_full_sync(db: Database | None = None) -> dict:
             _check_disconnects(db, sme_id, sme_name)
         except Exception:
             logger.warning(
-                "Failed disconnect check for %s", sme_name, exc_info=True,
+                "Failed disconnect check for %s",
+                sme_name,
+                exc_info=True,
             )
 
     logger.info(
